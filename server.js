@@ -56,6 +56,15 @@ app.use((req, res, next) => {
   next();
 });
 
+// Canonical Host Redirect: 301 Redirect old onrender.com URLs to the custom domain https://fflike.sbs
+app.use((req, res, next) => {
+  const host = req.get('host') || '';
+  if (host.includes('onrender.com')) {
+    return res.redirect(301, `https://fflike.sbs${req.originalUrl}`);
+  }
+  next();
+});
+
 // SEO: 301 Permanent Redirect from /index.html to / for canonicalization
 app.get('/index.html', (req, res) => {
   res.redirect(301, '/');

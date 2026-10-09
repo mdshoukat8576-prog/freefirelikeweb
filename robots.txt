@@ -5,4 +5,4 @@ Disallow: /api/
 Disallow: /data/
 
 # Sitemap location
-Sitemap: https://fflike-2mq0.onrender.com/sitemap.xml
+Sitemap: https://fflike.sbs/sitemap.xml
