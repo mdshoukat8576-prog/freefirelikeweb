@@ -1,5 +1,6 @@
 node_modules/
 .env
 *.zip
+push-to-github.*
 .DS_Store
 Thumbs.db
