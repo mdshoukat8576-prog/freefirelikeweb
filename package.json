@@ -1,0 +1,9 @@
+{
+  "name":"ff-auto-like-store",
+  "version":"2.1.0",
+  "private":true,
+  "description":"FREE FIRE AUTO LIKE storefront with manual QR payment and Telegram admin approval bot",
+  "main":"server.js",
+  "scripts":{"start":"node server.js"},
+  "dependencies":{"dotenv":"^16.4.7","express":"^4.21.2","multer":"^2.0.2"}
+}

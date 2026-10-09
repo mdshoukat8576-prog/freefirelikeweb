@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Allow: /assets/
+Disallow: /api/
+Disallow: /data/
+
+# Sitemap location
+Sitemap: https://fflike-2mq0.onrender.com/sitemap.xml

@@ -1,0 +1,17 @@
+[
+  {
+    "id": "FF-MV13SNCL-D21D72",
+    "plan": "7 Days",
+    "uid": "3070798320",
+    "server": "IND",
+    "telegram": "",
+    "amount": 90,
+    "likes": 1400,
+    "days": 7,
+    "status": "proof_submitted",
+    "utr": "22443423",
+    "proof": "/data/proofs/FF-MV13SNCL-D21D72.jpg",
+    "createdAt": "2026-10-09T15:11:44.181Z",
+    "updatedAt": "2026-10-09T15:11:58.883Z"
+  }
+]

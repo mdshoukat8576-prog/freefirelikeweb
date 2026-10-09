@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08090b">
+<title>Order Status & Tracking — FFLike | Check Your Like Order</title>
+<meta name="description" content="Check your Free Fire auto like order status on FFLike in real time. Enter your Order ID (FF-...) to view payment verification, current status, UID, and details.">
+<meta name="keywords" content="FFLike order status, track Free Fire likes, order verification, FF like status check">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<link rel="canonical" href="https://fflike-2mq0.onrender.com/order-status.html">
+
+<!-- Favicon & App Icons -->
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+
+<!-- Open Graph / Facebook -->
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://fflike-2mq0.onrender.com/order-status.html">
+<meta property="og:site_name" content="FFLike">
+<meta property="og:title" content="Order Status & Tracking — FFLike | Check Your Like Order">
+<meta property="og:description" content="Enter your Order ID to track your Free Fire Auto Like order verification and progress in real time.">
+<meta property="og:image" content="https://fflike-2mq0.onrender.com/assets/logo.png">
+
+<!-- Twitter Cards -->
+<meta name="twitter:card" content="summary">
+<meta name="twitter:url" content="https://fflike-2mq0.onrender.com/order-status.html">
+<meta name="twitter:title" content="Order Status — FFLike">
+<meta name="twitter:description" content="Track your Free Fire Auto Like order status using your Order ID.">
+<meta name="twitter:image" content="https://fflike-2mq0.onrender.com/assets/logo.png">
+
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+
+<!-- Structured Data: BreadcrumbList -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://fflike-2mq0.onrender.com/" },
+        { "@type": "ListItem", "position": 2, "name": "Order Status", "item": "https://fflike-2mq0.onrender.com/order-status.html" }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<main>
+<section class="page-hero">
+  <div class="wrap">
+    <a class="page-back-btn" href="/" onclick="if(history.length>1){history.back();return false;}"><span class="back-arrow">←</span> Back</a>
+    <span class="eyebrow">Auto Like tracking</span>
+    <h1>CHECK YOUR<br>ORDER.</h1>
+    <p>Enter the Order ID you received after creating your Free Fire Auto Like order.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="service-card reveal" data-tilt style="padding:30px">
+      <form id="statusForm" class="form">
+        <div class="field">
+          <label for="statusId">Order ID</label>
+          <input id="statusId" name="statusId" required placeholder="FF-..." autocomplete="off">
+        </div>
+        <button class="primary" type="submit">Check Status ↗</button>
+      </form>
+      <div id="statusResult" style="margin-top:18px" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
