@@ -70,52 +70,6 @@
     document.body.insertAdjacentHTML('afterbegin', header());
     document.body.insertAdjacentHTML('beforeend', footer());
     document.body.insertAdjacentHTML('beforeend', '<button class="scroll-top-btn" id="scrollTopBtn" aria-label="Scroll to top" title="Scroll to top">↑</button>');
-    
-    // Mobile Quick Action Bar with Circular Icons on EVERY page
-    const curPath = location.pathname.split('/').pop() || 'index.html';
-    const isPricing = curPath === 'pricing.html';
-    const isStatus = curPath === 'order-status.html';
-    
-    document.body.insertAdjacentHTML('beforeend', `
-      <div class="mobile-quick-bar" id="mobileQuickBar" role="navigation" aria-label="Quick Actions">
-        <a class="primary quick-buy ${isPricing ? 'active-quick' : ''}" href="${isPricing ? '#plans' : 'pricing.html'}" aria-label="Buy Free Fire Auto Likes">
-          <span class="quick-icon-circle" aria-hidden="true">
-            <svg class="quick-svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h7v8l10-12h-7l0-8z"/></svg>
-          </span>
-          <span class="quick-label">Buy Likes</span>
-        </a>
-        <a class="glass-btn quick-status ${isStatus ? 'active-quick' : ''}" href="${isStatus ? '#statusForm' : 'order-status.html'}" aria-label="Check Order Status">
-          <span class="quick-icon-circle" aria-hidden="true">
-            <svg class="quick-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-          </span>
-          <span class="quick-label">Track Order</span>
-        </a>
-      </div>
-    `);
-
-    // In-page smooth scroll handlers
-    const qb = $('#mobileQuickBar .quick-buy');
-    if (qb && isPricing) {
-      qb.onclick = (e) => {
-        const p = $('#plans');
-        if (p) {
-          e.preventDefault();
-          p.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      };
-    }
-    const qs = $('#mobileQuickBar .quick-status');
-    if (qs && isStatus) {
-      qs.onclick = (e) => {
-        const inp = $('#statusId');
-        if (inp) {
-          e.preventDefault();
-          inp.focus();
-          inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      };
-    }
-
     setupTheme();
   }
 
