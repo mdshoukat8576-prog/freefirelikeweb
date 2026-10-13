@@ -70,14 +70,22 @@ app.get('/index.html', (req, res) => {
   res.redirect(301, '/');
 });
 
-// Explicit SEO endpoints with strict MIME types
+// Explicit SEO endpoints with edge caching for Googlebot and crawlers
 app.get('/robots.txt', (req, res) => {
-  res.type('text/plain; charset=utf-8');
+  res.set({
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800',
+    'X-Robots-Tag': 'all'
+  });
   res.sendFile(path.join(publicDir, 'robots.txt'));
 });
 
-app.get('/sitemap.xml', (req, res) => {
-  res.type('application/xml; charset=utf-8');
+app.get(['/sitemap.xml', '/sitemap'], (req, res) => {
+  res.set({
+    'Content-Type': 'application/xml; charset=utf-8',
+    'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800',
+    'X-Robots-Tag': 'all'
+  });
   res.sendFile(path.join(publicDir, 'sitemap.xml'));
 });
 
@@ -274,3 +282,9 @@ function startServer(port) {
 }
 
 startServer(REQUESTED_PORT);
+
+// Keep-Alive: Ping robots.txt every 10 minutes to maintain fast responses on Render
+const pingUrl = process.env.RENDER_EXTERNAL_URL || 'https://fflike.sbs/robots.txt';
+setInterval(() => {
+  fetch(pingUrl).catch(() => {});
+}, 10 * 60 * 1000);

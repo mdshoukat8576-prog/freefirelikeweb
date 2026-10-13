@@ -67,9 +67,9 @@
   }
 
   function mountChrome() {
-    document.body.insertAdjacentHTML('afterbegin', header());
-    document.body.insertAdjacentHTML('beforeend', footer());
-    document.body.insertAdjacentHTML('beforeend', '<button class="scroll-top-btn" id="scrollTopBtn" aria-label="Scroll to top" title="Scroll to top">↑</button>');
+    if (!$('nav.nav')) document.body.insertAdjacentHTML('afterbegin', header());
+    if (!$('footer')) document.body.insertAdjacentHTML('beforeend', footer());
+    if (!$('#scrollTopBtn')) document.body.insertAdjacentHTML('beforeend', '<button class="scroll-top-btn" id="scrollTopBtn" aria-label="Scroll to top" title="Scroll to top">↑</button>');
     setupTheme();
   }
 
