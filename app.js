@@ -19,22 +19,23 @@
   const esc = s => String(s ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
 
   function header() {
-    const cleanPath = (location.pathname.replace(/^\/+/, '').split('/').pop() || 'index.html');
+    const rawPath = location.pathname.replace(/\/+$/, '') || '/';
+    const cleanPath = (rawPath.replace(/^\/+/, '').split('/').pop() || '').toLowerCase();
     const isHome = cleanPath === '' || cleanPath === 'index.html';
     const links = [
       ['/', 'Home', isHome],
-      ['pricing.html', 'Plans', cleanPath === 'pricing.html'],
-      ['how-it-works.html', 'How It Works', cleanPath === 'how-it-works.html'],
-      ['faq.html', 'FAQ', cleanPath === 'faq.html'],
-      ['order-status.html', 'Status', cleanPath === 'order-status.html'],
-      ['contact.html', 'Support', cleanPath === 'contact.html']
+      ['/pricing', 'Plans', cleanPath === 'pricing' || cleanPath === 'pricing.html'],
+      ['/how-it-works', 'How It Works', cleanPath === 'how-it-works' || cleanPath === 'how-it-works.html'],
+      ['/faq', 'FAQ', cleanPath === 'faq' || cleanPath === 'faq.html'],
+      ['/order-status', 'Status', cleanPath === 'order-status' || cleanPath === 'order-status.html'],
+      ['/contact', 'Support', cleanPath === 'contact' || cleanPath === 'contact.html']
     ];
     const linkHtml = links.map(([p, t, active]) => `<a class="${active ? 'active' : ''}" href="${p}">${t}</a>`).join('');
-    return `<nav class="nav" aria-label="Main Navigation"><a class="brand" href="/" aria-label="FFLike Home"><img src="${C.brand.logo}" alt="${esc(C.brand.name)} logo" width="48" height="48"><span>${esc(C.brand.shortName)}</span></a><div class="navlinks">${linkHtml}</div><div class="nav-actions"><button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme" type="button">◐</button><a class="primary nav-order" href="pricing.html">Buy Likes <span>↗</span></a><button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" type="button">☰</button></div></nav><div class="mobile-menu" id="mobileMenu" aria-hidden="true"><div class="mobile-menu-head"><span>MENU</span><button class="close" id="menuClose" aria-label="Close menu" type="button">×</button></div><div class="mobile-menu-links">${linkHtml}</div><a class="primary full mobile-buy" href="pricing.html">Buy Auto Likes <span>↗</span></a></div>`;
+    return `<nav class="nav" aria-label="Main Navigation"><a class="brand" href="/" aria-label="FFLike Home"><img src="${C.brand.logo}" alt="${esc(C.brand.name)} logo" width="44" height="44"><span>${esc(C.brand.shortName)}</span></a><div class="navlinks">${linkHtml}</div><div class="nav-actions"><button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme" type="button">◐</button><a class="primary nav-order" href="/pricing">Buy Likes <span>↗</span></a><button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" type="button">☰</button></div></nav><div class="mobile-menu" id="mobileMenu" aria-hidden="true"><div class="mobile-menu-head"><span>MENU</span><button class="close" id="menuClose" aria-label="Close menu" type="button">×</button></div><div class="mobile-menu-links">${linkHtml}</div><a class="primary full mobile-buy" href="/pricing">Buy Auto Likes <span>↗</span></a></div>`;
   }
 
   function footer() {
-    return `<footer><div class="wrap footer-row"><div><div>© ${new Date().getFullYear()} ${esc(C.brand.name)} — FFLike</div><div class="footer-disclaimer" style="margin-top:6px;font-size:10px;opacity:.7">Disclaimer: FFLike is an independent service providing profile likes. Not affiliated with or endorsed by Garena.</div></div><div class="footer-links"><a href="/">Home</a><a href="pricing.html">Plans</a><a href="how-it-works.html">How It Works</a><a href="faq.html">FAQ</a><a href="order-status.html">Order Status</a><a href="about.html">About</a><a href="free-likes.html">Auto Likes</a><a href="contact.html">Support</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="${C.contact.adminTelegramUrl}" target="_blank" rel="noopener">Telegram</a></div></div></footer>`;
+    return `<footer><div class="wrap footer-row"><div><div>© ${new Date().getFullYear()} ${esc(C.brand.name)} — FFLike</div><div class="footer-disclaimer" style="margin-top:6px;font-size:10px;opacity:.7">Disclaimer: FFLike is an independent third-party service providing cosmetic profile likes. Not affiliated with, endorsed by, or partnered with Garena or Free Fire.</div></div><div class="footer-links"><a href="/">Home</a><a href="/pricing">Plans</a><a href="/how-it-works">How It Works</a><a href="/faq">FAQ</a><a href="/order-status">Order Status</a><a href="/about">About</a><a href="/blog">Guides</a><a href="/contact">Support</a><a href="/terms-of-service">Terms</a><a href="/privacy-policy">Privacy</a><a href="/refund-policy">Refunds</a><a href="${C.contact.adminTelegramUrl}" target="_blank" rel="noopener">Telegram</a></div></div></footer>`;
   }
 
   function setupTheme() {
@@ -143,14 +144,12 @@
 
   function paymentHtml(order) {
     const qr = C.payment.qrPath || 'assets/payment-qr.png';
-    const tg = C.contact.adminTelegramUrl;
-    const msg = encodeURIComponent(`Hello, I have paid for my Free Fire Auto Like order.\n\nOrder ID: ${order.id}\nPlan: ${order.plan}\nAmount: ₹${order.amount}\nUID: ${order.uid}\nServer: ${order.server}\nUTR: [ADD UTR]\n\nI will attach the payment screenshot here.`);
-    return `<div class="payment-stage"><div class="payment-head"><div><span class="eyebrow"><i class="live-dot"></i> Payment</span><h3>Pay ₹${order.amount}</h3><p class="modal-price">${esc(order.plan)} · Order ${esc(order.id)}</p></div><button class="close" id="closePayment" aria-label="Close payment modal" type="button">×</button></div><div class="payment-grid"><div class="qr-box"><div class="qr-wrap"><img src="${qr}" alt="Payment QR Code for Order ${esc(order.id)}"></div><div class="pay-name">${esc(C.payment.accountName || 'Mohhamad Riyaz')}</div><div style="margin-top:10px"><a class="copy-btn qr-dl-btn" href="${qr}" download="FFLike-Payment-QR.png" target="_blank" rel="noopener" style="display:inline-block">Download QR ⤓</a></div></div><div><div class="amount-line"><span>Pay exactly</span><strong>₹${order.amount}</strong></div>${C.payment.upiId ? `<div class="upi-row"><span>UPI ID</span><button class="copy-btn" data-copy="${esc(C.payment.upiId)}" type="button">${esc(C.payment.upiId)} · Copy</button></div>` : ''}<ol class="pay-steps"><li>Scan the QR code or pay to the UPI ID.</li><li>Pay exactly ₹${order.amount}.</li><li>Enter your UTR / transaction reference number.</li><li>Upload the payment screenshot.</li></ol><form id="proofForm" class="form"><div class="field"><label for="utrInput">UTR / Transaction Reference</label><input id="utrInput" name="utr" required placeholder="Enter 12-digit UTR / reference" maxlength="64"></div><div class="field"><label for="proofInput">Payment Screenshot</label><input id="proofInput" name="proof" required type="file" accept="image/png,image/jpeg,image/webp"></div><button class="primary full" type="submit">Submit Payment Proof <span>↗</span></button></form></div></div><div class="order-note" style="margin-top:15px">After proof submission, open Telegram and send the order details with the same screenshot to the owner.</div><div class="payment-actions"><a class="primary" id="tgProof" href="${tg}?text=${msg}" target="_blank" rel="noopener">Open Telegram Support ↗</a><button class="glass-btn" id="copyOrder" data-copy="${esc(order.id)}" type="button">Copy Order ID</button></div></div>`;
+    return `<div class="payment-stage"><div class="payment-head"><div><h3>Pay ₹${order.amount}</h3><p class="modal-price">${esc(order.plan)} · Order ${esc(order.id)}</p></div><button class="close" id="closePayment" aria-label="Close payment modal" type="button">×</button></div><div class="payment-grid"><div class="qr-box"><div class="qr-wrap"><img src="${qr}" alt="Payment QR Code for Order ${esc(order.id)}"></div><div class="pay-name">${esc(C.payment.accountName || 'Mohhamad Riyaz')}</div><div style="margin-top:10px"><a class="copy-btn qr-dl-btn" href="${qr}" download="FFLike-Payment-QR.png" target="_blank" rel="noopener" style="display:inline-block">Download QR ⤓</a></div></div><div><div class="amount-line"><span>Pay exactly</span><strong>₹${order.amount}</strong></div>${C.payment.upiId ? `<div class="upi-row"><span>UPI ID</span><button class="copy-btn" data-copy="${esc(C.payment.upiId)}" type="button">${esc(C.payment.upiId)} · Copy</button></div>` : ''}<ol class="pay-steps"><li>Scan the QR code or pay to the UPI ID.</li><li>Pay exactly ₹${order.amount}.</li><li>Enter your UTR / transaction reference number.</li><li>Upload the payment screenshot.</li></ol><form id="proofForm" class="form"><div class="field"><label for="utrInput">UTR / Transaction Reference</label><input id="utrInput" name="utr" required placeholder="Enter 12-digit UTR / reference" maxlength="64"></div><div class="field"><label for="proofInput">Payment Screenshot</label><input id="proofInput" name="proof" required type="file" accept="image/png,image/jpeg,image/webp"></div><button class="primary full" type="submit">Verify Payment <span>↗</span></button></form></div></div><div id="postProofArea"></div></div>`;
   }
 
   function orderModal() {
     if ($('#orderModal')) return;
-    document.body.insertAdjacentHTML('beforeend', `<div class="modal" id="orderModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="sheet"><div class="modal-top"><div><span class="eyebrow"><i class="live-dot"></i> New order</span><h2 id="modalTitle">Create Order</h2><p id="modalPrice" class="modal-price"></p></div><button class="close" id="closeModal" aria-label="Close order dialog" type="button">×</button></div><form class="form" id="orderForm"><div class="field"><label for="uid">Free Fire UID</label><input id="uid" name="uid" required inputmode="numeric" placeholder="Enter your Free Fire UID (e.g. 123456789)"></div><div class="field"><label for="server">Free Fire Server</label><select id="server" name="server" required>${C.servers.map(s => `<option value="${esc(s[1])}">${esc(s[0])} ${esc(s[1])}</option>`).join('')}</select></div><div class="field"><label for="tg">Telegram Username (Optional)</label><input id="tg" name="tg" placeholder="@username (optional)"></div><div class="notice"><strong>Before paying:</strong> check your UID and server carefully. Your Order ID and exact payment amount will appear next.</div><button class="primary full" type="submit">Continue to Payment <span>→</span></button></form></div></div>`);
+    document.body.insertAdjacentHTML('beforeend', `<div class="modal" id="orderModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="sheet"><div class="modal-top"><div><h2 id="modalTitle">Create Order</h2><p id="modalPrice" class="modal-price"></p></div><button class="close" id="closeModal" aria-label="Close order dialog" type="button">×</button></div><form class="form" id="orderForm"><div class="field"><label for="uid">Free Fire UID</label><input id="uid" name="uid" required inputmode="numeric" placeholder="Enter your Free Fire UID (e.g. 123456789)"></div><div class="field"><label for="server">Free Fire Server</label><select id="server" name="server" required>${C.servers.map(s => `<option value="${esc(s[1])}">${esc(s[0])} ${esc(s[1])}</option>`).join('')}</select></div><div class="field"><label for="tg">Telegram Username (Optional)</label><input id="tg" name="tg" placeholder="@username (optional)"></div><div class="notice"><strong>Before paying:</strong> check your UID and server carefully. Your Order ID and exact payment amount will appear next.</div><button class="primary full" type="submit">Continue to Payment <span>→</span></button></form></div></div>`);
     const modal = $('#orderModal');
     let selected = null;
     const close = () => {
@@ -226,7 +225,7 @@
       e.preventDefault();
       const form = e.currentTarget, fd = new FormData(form), submit = form.querySelector('button');
       submit.disabled = true;
-      submit.innerHTML = 'Uploading proof <span class="spinner"></span>';
+      submit.innerHTML = 'Verifying payment <span class="spinner"></span>';
       try {
         const r = await fetch(`/api/orders/${encodeURIComponent(order.id)}/proof`, {
           method: 'POST',
@@ -236,13 +235,17 @@
         if (!r.ok) throw new Error(out.error || 'Proof upload failed');
         order.utr = out.order.utr;
         const msg = encodeURIComponent(`Hello, I have paid for my Free Fire Auto Like order.\n\nOrder ID: ${order.id}\nPlan: ${order.plan}\nAmount: ₹${order.amount}\nUID: ${order.uid}\nServer: ${order.server}\nUTR: ${order.utr}\n\nPayment screenshot has been uploaded on the website. I am attaching the same screenshot here for verification.`);
-        $('#tgProof').href = `${C.contact.adminTelegramUrl}?text=${msg}`;
-        form.innerHTML = '<div class="success-box"><strong>Payment proof submitted ✓</strong><span>Your order is waiting for manual verification.</span><a class="primary full" id="tgAfterProof" href="' + C.contact.adminTelegramUrl + '?text=' + msg + '" target="_blank" rel="noopener">Send Order to Telegram ↗</a></div>';
-        toast('Payment proof submitted — send the order to Telegram');
+        form.innerHTML = '<div class="success-box"><strong>Payment proof submitted ✓</strong><span>Your payment proof and UTR have been recorded. Please tap <b>Send Order to Telegram</b> below to start delivery.</span></div>';
+        const postArea = $('#postProofArea');
+        if (postArea) {
+          postArea.innerHTML = `<div class="payment-actions" style="margin-top:16px"><a class="primary pulse-highlight" id="tgProof" href="${C.contact.adminTelegramUrl}?text=${msg}" target="_blank" rel="noopener">Send Order to Telegram ↗</a><button class="glass-btn" id="copyOrder" data-copy="${esc(order.id)}" type="button">Copy Order ID</button></div>`;
+          bindCopy(postArea);
+        }
+        toast('Payment proof verified! Please send order to Telegram');
       } catch (err) {
         toast(err.message);
         submit.disabled = false;
-        submit.innerHTML = 'Submit Payment Proof <span>↗</span>';
+        submit.innerHTML = 'Verify Payment <span>↗</span>';
       }
     };
   }
@@ -255,7 +258,7 @@
       try {
         const r = await fetch(`/api/orders/${encodeURIComponent(id)}`), out = await r.json();
         if (!r.ok) throw new Error(out.error || 'Order not found');
-        box.innerHTML = `<div class="status-card"><div><span class="eyebrow">Order ${esc(out.order.id)}</span><h3>${esc(out.order.plan)}</h3><p>UID ${esc(out.order.uid)} · ${esc(out.order.server)}</p></div><span class="status-pill ${esc(out.order.status)}">${esc(out.order.status.replace('_', ' '))}</span><div class="status-grid"><span>Amount<strong>₹${out.order.amount}</strong></span><span>Created<strong>${new Date(out.order.createdAt).toLocaleString()}</strong></span><span>UTR<strong>${esc(out.order.utr || 'Not submitted')}</strong></span></div></div>`;
+        box.innerHTML = `<div class="status-card"><div><span class="status-order-label">Order ${esc(out.order.id)}</span><h3>${esc(out.order.plan)}</h3><p>UID ${esc(out.order.uid)} · ${esc(out.order.server)}</p></div><span class="status-pill ${esc(out.order.status)}">${esc(out.order.status.replace('_', ' '))}</span><div class="status-grid"><span>Amount<strong>₹${out.order.amount}</strong></span><span>Created<strong>${new Date(out.order.createdAt).toLocaleString()}</strong></span><span>UTR<strong>${esc(out.order.utr || 'Not submitted')}</strong></span></div></div>`;
       } catch (err) {
         box.innerHTML = `<div class="error-box">${esc(err.message)}</div>`;
       }

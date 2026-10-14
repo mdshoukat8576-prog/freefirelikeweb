@@ -4,36 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08090b">
-<title>Order Status & Tracking — FFLike | Check Your Like Order</title>
-<meta name="description" content="Check your Free Fire auto like order status on FFLike in real time. Enter your Order ID (FF-...) to view payment verification, current status, UID, and details.">
-<meta name="keywords" content="FFLike order status, track Free Fire likes, order verification, FF like status check">
+<title>Order Status & Tracking — FFLike | Real-Time Like Delivery</title>
+<meta name="description" content="Check your Free Fire auto like order status on FFLike in real time. Enter your Order ID (FF-...) to view payment verification, active delivery, and order details.">
+<meta name="keywords" content="FFLike order status, track Free Fire likes, order verification, FF like status check, track FF order">
 <meta name="robots" content="index, follow, max-image-preview:large">
-<link rel="canonical" href="https://fflike.sbs/order-status.html">
+<link rel="canonical" href="https://fflike.sbs/order-status">
 
 <!-- Favicon & App Icons -->
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
-<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
 
 <!-- Open Graph / Facebook -->
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://fflike.sbs/order-status.html">
+<meta property="og:url" content="https://fflike.sbs/order-status">
 <meta property="og:site_name" content="FFLike">
-<meta property="og:title" content="Order Status & Tracking — FFLike | Check Your Like Order">
-<meta property="og:description" content="Enter your Order ID to track your Free Fire Auto Like order verification and progress in real time.">
+<meta property="og:title" content="Order Status & Tracking — FFLike | Real-Time Like Delivery">
+<meta property="og:description" content="Enter your Order ID to track your Free Fire Auto Like order verification and delivery progress in real time.">
 <meta property="og:image" content="https://fflike.sbs/assets/logo.png">
 
 <!-- Twitter Cards -->
 <meta name="twitter:card" content="summary">
-<meta name="twitter:url" content="https://fflike.sbs/order-status.html">
+<meta name="twitter:url" content="https://fflike.sbs/order-status">
 <meta name="twitter:title" content="Order Status — FFLike">
 <meta name="twitter:description" content="Track your Free Fire Auto Like order status using your Order ID.">
 <meta name="twitter:image" content="https://fflike.sbs/assets/logo.png">
 
-<link rel="stylesheet" href="styles.css">
-<script src="config.js"></script>
+<link rel="stylesheet" href="/styles.css">
+<script src="/config.js"></script>
 
 <!-- Structured Data: BreadcrumbList -->
 <script type="application/ld+json">
@@ -44,7 +44,7 @@
       "@type": "BreadcrumbList",
       "itemListElement": [
         { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://fflike.sbs/" },
-        { "@type": "ListItem", "position": 2, "name": "Order Status", "item": "https://fflike.sbs/order-status.html" }
+        { "@type": "ListItem", "position": 2, "name": "Order Status", "item": "https://fflike.sbs/order-status" }
       ]
     }
   ]
@@ -52,33 +52,110 @@
 </script>
 </head>
 <body>
-<nav class="nav" aria-label="Main Navigation"><a class="brand" href="/" aria-label="FFLike Home"><img src="assets/logo.png" alt="FREE FIRE AUTO LIKE logo" width="48" height="48"><span>AUTO LIKE</span></a><div class="navlinks"><a class="" href="/">Home</a><a class="" href="pricing.html">Plans</a><a class="" href="how-it-works.html">How It Works</a><a class="" href="faq.html">FAQ</a><a class="active" href="order-status.html">Status</a><a class="" href="contact.html">Support</a></div><div class="nav-actions"><button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme" type="button">◐</button><a class="primary nav-order" href="pricing.html">Buy Likes <span>↗</span></a><button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" type="button">☰</button></div></nav><div class="mobile-menu" id="mobileMenu" aria-hidden="true"><div class="mobile-menu-head"><span>MENU</span><button class="close" id="menuClose" aria-label="Close menu" type="button">×</button></div><div class="mobile-menu-links"><a class="" href="/">Home</a><a class="" href="pricing.html">Plans</a><a class="" href="how-it-works.html">How It Works</a><a class="" href="faq.html">FAQ</a><a class="active" href="order-status.html">Status</a><a class="" href="contact.html">Support</a></div><a class="primary full mobile-buy" href="pricing.html">Buy Auto Likes <span>↗</span></a></div>
+<nav class="nav" aria-label="Main Navigation">
+  <a class="brand" href="/" aria-label="FFLike Home">
+    <img src="/assets/logo.png" alt="FREE FIRE AUTO LIKE logo" width="44" height="44">
+    <span>AUTO LIKE</span>
+  </a>
+  <div class="navlinks">
+    <a href="/">Home</a>
+    <a href="/pricing">Plans</a>
+    <a href="/how-it-works">How It Works</a>
+    <a href="/faq">FAQ</a>
+    <a class="active" href="/order-status">Status</a>
+    <a href="/contact">Support</a>
+  </div>
+  <div class="nav-actions">
+    <button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme" type="button">◐</button>
+    <a class="primary nav-order" href="/pricing">Buy Likes <span>↗</span></a>
+    <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" type="button">☰</button>
+  </div>
+</nav>
+
+<div class="mobile-menu" id="mobileMenu" aria-hidden="true">
+  <div class="mobile-menu-head">
+    <span>MENU</span>
+    <button class="close" id="menuClose" aria-label="Close menu" type="button">×</button>
+  </div>
+  <div class="mobile-menu-links">
+    <a href="/">Home</a>
+    <a href="/pricing">Plans</a>
+    <a href="/how-it-works">How It Works</a>
+    <a href="/faq">FAQ</a>
+    <a class="active" href="/order-status">Status</a>
+    <a href="/contact">Support</a>
+  </div>
+  <a class="primary full mobile-buy" href="/pricing">Buy Auto Likes <span>↗</span></a>
+</div>
+
 <main>
 <section class="page-hero">
   <div class="wrap">
-    <a class="page-back-btn" href="/" onclick="if(history.length>1){history.back();return false;}"><span class="back-arrow">←</span> Back</a>
-    <span class="eyebrow">Auto Like tracking</span>
+    <a class="page-back-btn" href="/" onclick="if(history.length>1){history.back();return false;}" aria-label="Go back to previous page"><span class="back-arrow">←</span> Back</a>
     <h1>CHECK YOUR<br>ORDER.</h1>
-    <p>Enter the Order ID you received after creating your Free Fire Auto Like order.</p>
+    <p>Enter the Order ID you received during checkout to monitor real-time verification and daily delivery progress.</p>
   </div>
 </section>
 
-<section>
+<section style="padding-top:25px">
   <div class="wrap">
     <div class="service-card reveal" data-tilt style="padding:30px">
       <form id="statusForm" class="form">
         <div class="field">
-          <label for="statusId">Order ID</label>
+          <label for="statusId">Order ID (e.g. FF-...)</label>
           <input id="statusId" name="statusId" required placeholder="FF-..." autocomplete="off">
         </div>
         <button class="primary" type="submit">Check Status ↗</button>
       </form>
       <div id="statusResult" style="margin-top:18px" aria-live="polite"></div>
     </div>
+
+    <!-- Trust Summary Strip -->
+    <div style="margin-top:35px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px" class="reveal">
+      <div class="contact-card">
+        <h3>⚡ Instant Verification</h3>
+        <p>Proof submissions are reviewed instantly upon receipt by our 24/7 admin team.</p>
+      </div>
+      <div class="contact-card">
+        <h3>🛡️ 100% Refund Policy</h3>
+        <p>Full UPI refund if scheduled likes cannot be delivered to your confirmed UID.</p>
+      </div>
+      <div class="contact-card">
+        <h3>💬 24/7 Telegram Care</h3>
+        <p>Active support on <a href="https://t.me/riyaznx" target="_blank" rel="noopener">@riyaznx</a> for instant status updates and adjustments.</p>
+      </div>
+    </div>
+
+    <div class="direct-answer-box reveal" style="margin-top:40px">
+      <div class="direct-answer-badge">DIRECT TRACKING OVERVIEW</div>
+      <p>Enter your unique <strong>Order ID</strong> (formatted as <code>FF-XXXXX-XXXXX</code>) below to inspect payment proof verification status, current processing queue, submitted player UID, and regional server routing. Payment proof is verified <strong>instantly upon receipt</strong>. For any UID corrections or assistance, connect directly with our <strong>24/7 Telegram support (<a href="https://t.me/riyaznx" target="_blank" rel="noopener">@riyaznx</a>)</strong>.</p>
+    </div>
   </div>
 </section>
 </main>
-<footer><div class="wrap footer-row"><div><div>© 2026 FREE FIRE AUTO LIKE — FFLike</div><div class="footer-disclaimer" style="margin-top:6px;font-size:10px;opacity:.7">Disclaimer: FFLike is an independent service providing profile likes. Not affiliated with or endorsed by Garena.</div></div><div class="footer-links"><a href="/">Home</a><a href="pricing.html">Plans</a><a href="how-it-works.html">How It Works</a><a href="faq.html">FAQ</a><a href="order-status.html">Order Status</a><a href="about.html">About</a><a href="free-likes.html">Auto Likes</a><a href="contact.html">Support</a><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="https://t.me/riyaznx" target="_blank" rel="noopener">Telegram</a></div></div></footer>
-<script src="app.js"></script>
+
+<footer>
+  <div class="wrap footer-row">
+    <div>
+      <div>© 2026 FREE FIRE AUTO LIKE — FFLike</div>
+      <div class="footer-disclaimer" style="margin-top:6px;font-size:10px;opacity:.7">Disclaimer: FFLike is an independent third-party service providing cosmetic profile likes. Not affiliated with, endorsed by, or partnered with Garena or Free Fire.</div>
+    </div>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/pricing">Plans</a>
+      <a href="/how-it-works">How It Works</a>
+      <a href="/faq">FAQ</a>
+      <a href="/order-status">Order Status</a>
+      <a href="/about">About</a>
+      <a href="/blog">Guides</a>
+      <a href="/contact">Support</a>
+      <a href="/terms-of-service">Terms</a>
+      <a href="/privacy-policy">Privacy</a>
+      <a href="/refund-policy">Refunds</a>
+      <a href="https://t.me/riyaznx" target="_blank" rel="noopener">Telegram</a>
+    </div>
+  </div>
+</footer>
+<script src="/app.js"></script>
 </body>
 </html>

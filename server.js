@@ -70,6 +70,50 @@ app.get('/index.html', (req, res) => {
   res.redirect(301, '/');
 });
 
+// Clean URLs: 301 redirect .html URLs to extensionless clean URLs and serve clean routes
+const cleanRoutes = [
+  'pricing',
+  'how-it-works',
+  'faq',
+  'order-status',
+  'contact',
+  'about',
+  'free-likes',
+  'privacy-policy',
+  'terms-of-service',
+  'refund-policy',
+  'blog'
+];
+
+// Legacy URL 301 redirects to normalized canonical paths
+app.get(['/privacy', '/privacy.html'], (req, res) => res.redirect(301, '/privacy-policy'));
+app.get(['/terms', '/terms.html'], (req, res) => res.redirect(301, '/terms-of-service'));
+
+cleanRoutes.forEach((route) => {
+  app.get(`/${route}.html`, (req, res) => {
+    res.redirect(301, `/${route}`);
+  });
+  app.get(`/${route}`, (req, res) => {
+    const file = path.join(publicDir, `${route}.html`);
+    if (fs.existsSync(file)) {
+      res.sendFile(file);
+    } else {
+      res.redirect(301, '/');
+    }
+  });
+});
+
+// Blog guide post routing: /blog/:slug
+app.get('/blog/:slug', (req, res) => {
+  const slug = req.params.slug.replace(/[^a-z0-9-]/gi, '');
+  const blogFile = path.join(publicDir, 'blog', `${slug}.html`);
+  if (fs.existsSync(blogFile)) {
+    res.sendFile(blogFile);
+  } else {
+    res.redirect(301, '/blog');
+  }
+});
+
 // Explicit SEO endpoints with edge caching for Googlebot and crawlers
 app.get('/robots.txt', (req, res) => {
   res.set({
