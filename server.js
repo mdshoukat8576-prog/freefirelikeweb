@@ -1,219 +1,162 @@
 const path = require('path');
-const fs = require('fs');
+const fs   = require('fs');
 const crypto = require('crypto');
 const express = require('express');
-const multer = require('multer');
+const multer  = require('multer');
+const cookieParser = require('cookie-parser');
 
-// Always load env from this project folder, not from the terminal's current directory.
-// Prefer .env; for this packaged build, fall back to .env.example so the user's
-// existing configuration is detected even if Windows saved it as .env.example.
+// Load .env
 const envPath = path.join(__dirname, '.env');
-const envExamplePath = path.join(__dirname, '.env.example');
-const envSource = fs.existsSync(envPath) ? '.env' : (fs.existsSync(envExamplePath) ? '.env.example' : 'none');
-if (fs.existsSync(envPath)) {
-  require('dotenv').config({ path: envPath });
-} else if (fs.existsSync(envExamplePath)) {
-  require('dotenv').config({ path: envExamplePath });
-}
-console.log(`[ENV] Loaded from ${envSource}`);
+const envExPath = path.join(__dirname, '.env.example');
+if (fs.existsSync(envPath)) require('dotenv').config({ path: envPath });
+else if (fs.existsSync(envExPath)) require('dotenv').config({ path: envExPath });
 
-// Load environment variables BEFORE loading the Telegram bot module.
-const { notifyAdmin } = require('./bot');
+// Modules (load after env)
+const { notifyAdmin, notifyGuildGloryOrder, checkChannelMembership } = require('./bot');
+const db = require('./db');
+const { authMiddleware, optionalAuth, verifyTelegramLogin, setSessionCookie, clearSessionCookie } = require('./auth');
 
-const app = express();
+const app         = express();
 const REQUESTED_PORT = Number(process.env.PORT || 3000);
-const publicDir = path.join(__dirname);
-const isVercel = Boolean(process.env.VERCEL);
-const dataDir = isVercel ? path.join('/tmp', 'data') : path.join(__dirname, 'data');
-const proofDir = path.join(dataDir, 'proofs');
-try { fs.mkdirSync(proofDir, { recursive: true }); } catch (e) {}
+const publicDir   = path.join(__dirname);
+const isVercel    = Boolean(process.env.VERCEL);
+const dataDir     = isVercel ? '/tmp/data' : path.join(__dirname, 'data');
+const proofDir    = path.join(dataDir, 'proofs');
+try { fs.mkdirSync(proofDir, { recursive: true }); } catch (_) {}
+
 const ordersFile = path.join(dataDir, 'orders.json');
 if (!fs.existsSync(ordersFile)) {
-  const seedFile = path.join(__dirname, 'data', 'orders.json');
-  try {
-    if (fs.existsSync(seedFile)) {
-      fs.copyFileSync(seedFile, ordersFile);
-    } else {
-      fs.writeFileSync(ordersFile, '[]');
-    }
-  } catch (e) {}
+  const seed = path.join(__dirname, 'data', 'orders.json');
+  try { fs.copyFileSync(seed, ordersFile); } catch (_) {}
+  if (!fs.existsSync(ordersFile)) try { fs.writeFileSync(ordersFile, '[]'); } catch (_) {}
 }
 
 const PLANS = {
-  '1 Day': { inr: 20, days: 1, likes: 200 },
-  '7 Days': { inr: 90, days: 7, likes: 1400 },
-  '15 Days': { inr: 190, days: 15, likes: 3000 },
-  '30 Days': { inr: 350, days: 30, likes: 6000 },
-  '60 Days': { inr: 600, days: 60, likes: 12000 },
-  '90 Days': { inr: 800, days: 90, likes: 18000 }
+  '1 Day':  { inr: 20,  days: 1,  likes: 200   },
+  '7 Days': { inr: 90,  days: 7,  likes: 1400  },
+  '15 Days':{ inr: 190, days: 15, likes: 3000  },
+  '30 Days':{ inr: 350, days: 30, likes: 6000  },
+  '60 Days':{ inr: 600, days: 60, likes: 12000 },
+  '90 Days':{ inr: 800, days: 90, likes: 18000 }
 };
 const SERVERS = ['IND','BR','US','SG','RU','ID','TW','VN','TH','PK','BD','EUROPE','ME','SAC','NA'];
+const REGION_MAP = {
+  IND:'ind',BD:'bd',BR:'br',US:'us',SG:'sg',RU:'ru',
+  ID:'id',TW:'tw',VN:'vn',TH:'th',PK:'pk',
+  EUROPE:'europe',ME:'me',SAC:'sac',NA:'na'
+};
+const GG_PACKAGES = {
+  '1squad':  { name:'4 Bots · 1 Squad',  inr:150,  usd:6,  description:'Guild Glory 100K–200K' },
+  '2squads': { name:'4 Bots · 2 Squads', inr:289,  usd:7,  description:'Guild Glory 200K–300K' },
+  '3squads': { name:'6 Bots · 3 Squads', inr:700,  usd:11, description:'Level 1→7 Direct — 500K Glory', badge:'BEST VALUE' },
+  '4squads': { name:'8 Bots · 4 Squads', inr:1400, usd:16, description:'Full 1 Million Guild Glory Boost' }
+};
+const REQUIRED_CHANNELS = ['riyazapi','riyazlike','autolikegrp','orewaaizennn'];
 
-// Security: Block direct public access to sensitive files and order database
+// ── Middleware ────────────────────────────────────────────────────────────────
+// Security: block sensitive files
 app.use((req, res, next) => {
-  const normalized = req.path.toLowerCase();
-  if (
-    normalized.startsWith('/.env') ||
-    normalized === '/package.json' ||
-    normalized === '/package-lock.json' ||
-    (!process.env.VERCEL && normalized === '/server.js') ||
-    normalized === '/bot.js' ||
-    normalized === '/data/orders.json' ||
-    normalized.startsWith('/.git')
-  ) {
+  const p = req.path.toLowerCase();
+  if (p.startsWith('/.env') || p === '/package.json' || p === '/package-lock.json' ||
+      (!isVercel && p === '/server.js') || p === '/bot.js' || p === '/db.js' ||
+      p === '/auth.js' || p === '/data/orders.json' || p.startsWith('/.git')) {
     return res.status(403).type('text/plain').send('Access Forbidden');
   }
   next();
 });
 
-// Canonical Host Redirect: 301 Redirect old onrender.com URLs to the custom domain https://fflike.sbs
+// onrender.com → fflike.sbs redirect
 app.use((req, res, next) => {
-  const host = req.get('host') || '';
-  if (host.includes('onrender.com')) {
+  if ((req.get('host') || '').includes('onrender.com'))
     return res.redirect(301, `https://fflike.sbs${req.originalUrl}`);
-  }
   next();
 });
 
-// SEO: 301 Permanent Redirect from /index.html to / for canonicalization
-app.get('/index.html', (req, res) => {
-  res.redirect(301, '/');
-});
-
-// Clean URLs: 301 redirect .html URLs to extensionless clean URLs and serve clean routes
-const cleanRoutes = [
-  'pricing',
-  'how-it-works',
-  'faq',
-  'order-status',
-  'contact',
-  'about',
-  'free-likes',
-  'privacy-policy',
-  'terms-of-service',
-  'refund-policy',
-  'blog'
-];
-
-// Legacy URL 301 redirects to normalized canonical paths
-app.get(['/privacy', '/privacy.html'], (req, res) => res.redirect(301, '/privacy-policy'));
-app.get(['/terms', '/terms.html'], (req, res) => res.redirect(301, '/terms-of-service'));
-
-cleanRoutes.forEach((route) => {
-  app.get(`/${route}.html`, (req, res) => {
-    res.redirect(301, `/${route}`);
-  });
-  app.get(`/${route}`, (req, res) => {
-    const file = path.join(publicDir, `${route}.html`);
-    if (fs.existsSync(file)) {
-      res.sendFile(file);
-    } else {
-      res.redirect(301, '/');
-    }
-  });
-});
-
-// Blog guide post routing: /blog/:slug
-app.get('/blog/:slug', (req, res) => {
-  const slug = req.params.slug.replace(/[^a-z0-9-]/gi, '');
-  const blogFile = path.join(publicDir, 'blog', `${slug}.html`);
-  if (fs.existsSync(blogFile)) {
-    res.sendFile(blogFile);
-  } else {
-    res.redirect(301, '/blog');
-  }
-});
-
-// Explicit SEO endpoints with edge caching for Googlebot and crawlers
-app.get('/robots.txt', (req, res) => {
-  res.set({
-    'Content-Type': 'text/plain; charset=utf-8',
-    'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800',
-    'X-Robots-Tag': 'all'
-  });
-  res.sendFile(path.join(publicDir, 'robots.txt'));
-});
-
-app.get(['/sitemap.xml', '/sitemap'], (req, res) => {
-  res.set({
-    'Content-Type': 'application/xml; charset=utf-8',
-    'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800',
-    'X-Robots-Tag': 'all'
-  });
-  res.sendFile(path.join(publicDir, 'sitemap.xml'));
-});
-
-app.get('/favicon.ico', (req, res) => {
-  const ico = path.join(publicDir, 'favicon.ico');
-  if (fs.existsSync(ico)) {
-    res.type('image/x-icon');
-    res.sendFile(ico);
-  } else {
-    res.status(204).end();
-  }
-});
-
-// Explicit static routes for critical frontend assets
-app.get('/styles.css', (req, res) => {
-  const f = fs.existsSync(path.join(__dirname, 'styles.css')) ? path.join(__dirname, 'styles.css') : path.join(process.cwd(), 'styles.css');
-  res.setHeader('Content-Type', 'text/css; charset=UTF-8');
-  res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-  res.sendFile(f);
-});
-
-app.get('/app.js', (req, res) => {
-  const f = fs.existsSync(path.join(__dirname, 'app.js')) ? path.join(__dirname, 'app.js') : path.join(process.cwd(), 'app.js');
-  res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
-  res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-  res.sendFile(f);
-});
-
-app.get('/config.js', (req, res) => {
-  const f = fs.existsSync(path.join(__dirname, 'config.js')) ? path.join(__dirname, 'config.js') : path.join(process.cwd(), 'config.js');
-  res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
-  res.sendFile(f);
-});
-
-// Performance: Cache headers for static assets
-app.use('/assets', express.static(path.join(__dirname, 'assets'), {
-  maxAge: '1d',
-  setHeaders: (res) => {
-    res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
-  }
-}));
-
+// Raw body for Razorpay webhook
+app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '200kb' }));
 app.use(express.urlencoded({ extended: true, limit: '200kb' }));
+app.use(cookieParser());
+
+// ── DB init (async, runs in background — routes wait if needed) ───────────────
+db.initDb().catch(e => console.error('[DB] init error:', e.message));
+
+// ── Static assets ─────────────────────────────────────────────────────────────
+app.get('/index.html', (_, res) => res.redirect(301, '/'));
+app.get('/robots.txt', (_, res) => {
+  res.set({'Content-Type':'text/plain;charset=utf-8','Cache-Control':'public,max-age=3600,s-maxage=86400'});
+  res.sendFile(path.join(publicDir,'robots.txt'));
+});
+app.get(['/sitemap.xml','/sitemap'], (_, res) => {
+  res.set({'Content-Type':'application/xml;charset=utf-8','Cache-Control':'public,max-age=3600,s-maxage=86400'});
+  res.sendFile(path.join(publicDir,'sitemap.xml'));
+});
+app.get('/favicon.ico', (_, res) => {
+  const f = path.join(publicDir,'favicon.ico');
+  fs.existsSync(f) ? res.type('image/x-icon').sendFile(f) : res.status(204).end();
+});
+app.get('/styles.css', (_, res) => {
+  const f = path.join(__dirname,'styles.css');
+  res.setHeader('Content-Type','text/css;charset=UTF-8');
+  res.setHeader('Cache-Control','public,max-age=86400,stale-while-revalidate=604800');
+  res.sendFile(f);
+});
+app.get('/app.js', (_, res) => {
+  res.setHeader('Content-Type','application/javascript;charset=UTF-8');
+  res.setHeader('Cache-Control','public,max-age=86400,stale-while-revalidate=604800');
+  res.sendFile(path.join(__dirname,'app.js'));
+});
+app.get('/config.js', (_, res) => {
+  res.setHeader('Content-Type','application/javascript;charset=UTF-8');
+  res.sendFile(path.join(__dirname,'config.js'));
+});
+app.use('/assets', express.static(path.join(__dirname,'assets'), {
+  maxAge:'1d',
+  setHeaders: r => r.setHeader('Cache-Control','public,max-age=86400,stale-while-revalidate=604800')
+}));
+
+// ── Clean URL routes ──────────────────────────────────────────────────────────
+const cleanRoutes = ['pricing','how-it-works','faq','order-status','contact','about',
+  'free-likes','privacy-policy','terms-of-service','refund-policy','blog','guild-glory','profile'];
+app.get(['/privacy','/privacy.html'], (_, res) => res.redirect(301,'/privacy-policy'));
+app.get(['/terms','/terms.html'], (_, res) => res.redirect(301,'/terms-of-service'));
+cleanRoutes.forEach(r => {
+  app.get(`/${r}.html`, (_, res) => res.redirect(301,`/${r}`));
+  app.get(`/${r}`, (req, res) => {
+    const f = path.join(publicDir,`${r}.html`);
+    fs.existsSync(f) ? res.sendFile(f) : res.redirect(301,'/');
+  });
+});
+app.get('/blog/:slug', (req, res) => {
+  const slug = req.params.slug.replace(/[^a-z0-9-]/gi,'');
+  const f = path.join(publicDir,'blog',`${slug}.html`);
+  fs.existsSync(f) ? res.sendFile(f) : res.redirect(301,'/blog');
+});
+
 app.use(express.static(publicDir));
 
+// ── Upload config ─────────────────────────────────────────────────────────────
 const upload = multer({
   dest: proofDir,
-  limits: { fileSize: 8 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const ok = ['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype);
-    cb(ok ? null : new Error('Only JPG, PNG or WEBP images are allowed'), ok);
+  limits: { fileSize: 8*1024*1024 },
+  fileFilter: (_, file, cb) => {
+    const ok = ['image/jpeg','image/png','image/webp'].includes(file.mimetype);
+    cb(ok ? null : new Error('Only JPG, PNG or WEBP allowed'), ok);
   }
 });
 
-function readOrders() {
-  try { return JSON.parse(fs.readFileSync(ordersFile, 'utf8')); }
-  catch { return []; }
-}
-function writeOrders(list) {
-  fs.writeFileSync(ordersFile, JSON.stringify(list, null, 2));
-}
-function safeId() {
-  return `FF-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-}
-
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function readOrders() { try { return JSON.parse(fs.readFileSync(ordersFile,'utf8')); } catch { return []; } }
+function writeOrders(l) { fs.writeFileSync(ordersFile,JSON.stringify(l,null,2)); }
+function safeId() { return `FF-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`; }
 function publicConfig() {
   return {
     brand: { name: process.env.STORE_NAME || 'FREE FIRE AUTO LIKE' },
     contact: {
       adminTelegram: process.env.ADMIN_TELEGRAM || 'riyaznx',
-      adminTelegramUrl: `https://t.me/${String(process.env.ADMIN_TELEGRAM || 'riyaznx').replace(/^@/, '')}`,
+      adminTelegramUrl: `https://t.me/${String(process.env.ADMIN_TELEGRAM||'riyaznx').replace(/^@/,'')}`,
       community: process.env.COMMUNITY_TELEGRAM || 'AutoLikeGrp',
-      communityUrl: `https://t.me/${String(process.env.COMMUNITY_TELEGRAM || 'AutoLikeGrp').replace(/^@/, '')}`
+      communityUrl: `https://t.me/${String(process.env.COMMUNITY_TELEGRAM||'AutoLikeGrp').replace(/^@/,'')}`
     },
     payment: {
       qrPath: process.env.PAYMENT_QR_PATH || '/assets/payment-qr.png',
@@ -224,146 +167,427 @@ function publicConfig() {
   };
 }
 
-app.get(['/api/config', '/config'], (req, res) => res.json(publicConfig()));
+// ── Auth Middleware wrapper (waits for DB init) ───────────────────────────────
+function withDb(fn) {
+  return async (req, res, next) => {
+    try { await db.initDb(); fn(req, res, next); } catch (e) { res.status(503).json({ error: 'DB not ready' }); }
+  };
+}
 
-app.post(['/api/orders', '/orders'], (req, res) => {
+// ═══════════════════════════════════════════════════════════════════════════════
+//  NEW ROUTES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+app.post('/api/auth/telegram', async (req, res) => {
+  try {
+    await db.initDb();
+    const data = req.body;
+    verifyTelegramLogin(data); // throws on invalid/expired
+    const telegramId = String(data.id);
+    const name = [data.first_name, data.last_name].filter(Boolean).join(' ') || 'User';
+    const user = db.upsertUser({ telegram_id: telegramId, name, username: data.username || null, photo_url: data.photo_url || null });
+    if (req.body.ref_code) {
+      try {
+        const referrer = db.getUser(req.body.ref_code); // try by referral_code
+        if (!referrer) {
+          // try finding user whose referral_code matches
+        }
+      } catch (_) {}
+    }
+    setSessionCookie(res, user.id);
+    const { referral_code, credits, channels_verified, name: uName, username, photo_url, telegram_id, created_at } = user;
+    res.json({ ok: true, user: { id: user.id, telegram_id, name: uName, username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at } });
+  } catch (e) {
+    console.error('[Auth]', e.message);
+    res.status(401).json({ error: 'Authentication failed: ' + e.message });
+  }
+});
+
+app.get('/api/auth/me', optionalAuth, async (req, res) => {
+  if (!req.userId) return res.json({ user: null });
+  try {
+    await db.initDb();
+    const user = db.getUserById(req.userId);
+    if (!user) return res.json({ user: null });
+    const { id, telegram_id, name, username, photo_url, credits, channels_verified, referral_code, created_at } = user;
+    res.json({ user: { id, telegram_id, name, username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at } });
+  } catch (e) { res.status(500).json({ error: 'Failed' }); }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+// ── Membership Verify ─────────────────────────────────────────────────────────
+app.post('/api/membership/verify', authMiddleware, async (req, res) => {
+  try {
+    await db.initDb();
+    const user = db.getUserById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const results = await Promise.all(
+      REQUIRED_CHANNELS.map(async ch => {
+        try {
+          const joined = await checkChannelMembership(user.telegram_id, ch);
+          return { name: `@${ch}`, joined };
+        } catch (_) {
+          return { name: `@${ch}`, joined: false, error: true };
+        }
+      })
+    );
+
+    const allVerified = results.every(r => r.joined);
+    let creditGranted = false;
+
+    if (allVerified) {
+      const fresh = db.getUserById(user.id);
+      if (!fresh.channels_verified) db.updateUser(user.telegram_id, { channels_verified: 1, channels_verified_at: new Date().toISOString() });
+      if (!fresh.initial_reward_claimed) {
+        try {
+          db.updateUserCredits(user.id, 1, 'reward', 'Initial channel verification reward', null);
+          db.updateUser(user.telegram_id, { initial_reward_claimed: 1 });
+          creditGranted = true;
+          // Complete referral if exists
+          try {
+            const refRow = db.completeReferral(user.id);
+            if (refRow) db.updateUserCredits(refRow.referrer_id, 1, 'referral', 'Referral reward', String(user.id));
+          } catch (_) {}
+        } catch (_) {}
+      }
+    }
+
+    res.json({ verified: allVerified, channels: results, creditGranted });
+  } catch (e) {
+    console.error('[Membership]', e.message);
+    res.status(500).json({ error: 'Verification failed: ' + e.message });
+  }
+});
+
+// ── Free Likes ────────────────────────────────────────────────────────────────
+app.post('/api/likes/request', authMiddleware, async (req, res) => {
+  try {
+    await db.initDb();
+    const { uid, region } = req.body || {};
+    if (!/^\d{5,15}$/.test(String(uid||''))) return res.status(400).json({ error: 'Invalid UID (5-15 digits)' });
+    if (!SERVERS.includes(String(region||''))) return res.status(400).json({ error: 'Invalid region' });
+
+    const user = db.getUserById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!user.channels_verified) return res.status(403).json({ error: 'Please verify channel membership first' });
+    if (user.credits < 1) return res.status(402).json({ error: 'No credits. Purchase credits to continue.' });
+
+    // Deduct credit
+    try { db.updateUserCredits(user.id, -1, 'spend', 'Likes request', String(uid)); }
+    catch (_) { return res.status(402).json({ error: 'Insufficient credits' }); }
+
+    const apiRegion = REGION_MAP[region] || region.toLowerCase();
+    let apiResult = null, likesGiven = 0;
+
+    try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 15000);
+      const r = await fetch(`https://all-server-eight.vercel.app/like?uid=${encodeURIComponent(uid)}&region=${encodeURIComponent(apiRegion)}`, { signal: ctrl.signal });
+      clearTimeout(t);
+      apiResult = await r.json();
+      likesGiven = Number(apiResult.LikesGivenByAPI || apiResult.likes_given || 0);
+    } catch (e) {
+      try { db.updateUserCredits(user.id, 1, 'refund', 'API error refund', String(uid)); } catch (_) {}
+      return res.status(502).json({ error: 'Likes API unavailable. Credit refunded.' });
+    }
+
+    if (likesGiven <= 0) {
+      try { db.updateUserCredits(user.id, 1, 'refund', 'No likes given — refund', String(uid)); } catch (_) {}
+    }
+
+    db.createLikesRequest({
+      user_id: user.id, uid: String(uid), region,
+      likes_before: Number(apiResult.LikesBefore||0), likes_after: Number(apiResult.LikesAfter||0),
+      likes_given: likesGiven,
+      nickname: String(apiResult.PlayerNickname||'Unknown'),
+      level: Number(apiResult.Level||0),
+      status: likesGiven > 0 ? 'success' : 'no_likes',
+      credit_charged: likesGiven > 0 ? 1 : 0
+    });
+
+    const fresh = db.getUserById(user.id);
+    res.json({
+      ok: true, likesGiven, uid: String(uid), region,
+      nickname: apiResult.PlayerNickname||'Unknown', level: apiResult.Level||0,
+      likesBefore: apiResult.LikesBefore||0, likesAfter: apiResult.LikesAfter||0,
+      credits: Number(fresh.credits),
+      message: likesGiven > 0 ? `✅ ${likesGiven} likes sent!` : '⚠️ No likes sent. Credit refunded.'
+    });
+  } catch (e) {
+    console.error('[Likes]', e.message);
+    res.status(500).json({ error: 'Request failed. Please try again.' });
+  }
+});
+
+app.get('/api/likes/history', authMiddleware, async (req, res) => {
+  try {
+    await db.initDb();
+    res.json({ history: db.getLikesHistory(req.userId) });
+  } catch (_) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// ── Credits / Razorpay ────────────────────────────────────────────────────────
+app.post('/api/credits/order', authMiddleware, async (req, res) => {
+  try {
+    await db.initDb();
+    const credits = parseInt(req.body.credits, 10);
+    if (!credits || credits < 1 || credits > 1000) return res.status(400).json({ error: 'Credits must be 1–1000' });
+    const amountPaise = credits * 500;
+
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET)
+      return res.json({ error: 'Payment not configured', setup: true });
+
+    const Razorpay = require('razorpay');
+    const rzp = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
+    const rzpOrder = await rzp.orders.create({ amount: amountPaise, currency: 'INR', receipt: `cr_${req.userId}_${Date.now()}` });
+    db.createCreditOrder({ user_id: req.userId, razorpay_order_id: rzpOrder.id, credits, amount_paise: amountPaise });
+    res.json({ ok: true, orderId: rzpOrder.id, amount: amountPaise, currency: 'INR', credits, keyId: process.env.RAZORPAY_KEY_ID });
+  } catch (e) {
+    console.error('[Credits]', e.message);
+    res.status(500).json({ error: 'Failed to create payment order' });
+  }
+});
+
+app.post('/api/credits/verify', authMiddleware, async (req, res) => {
+  try {
+    await db.initDb();
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature)
+      return res.status(400).json({ error: 'Missing fields' });
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    if (!secret) return res.status(503).json({ error: 'Payment not configured' });
+    const expected = crypto.createHmac('sha256', secret).update(`${razorpay_order_id}|${razorpay_payment_id}`).digest('hex');
+    if (expected !== razorpay_signature) return res.status(400).json({ error: 'Invalid signature' });
+
+    const order = db.getCreditOrder(razorpay_order_id);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (order.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+    if (order.fulfilled) return res.json({ ok: true, credits: db.getUserById(req.userId).credits, already: true });
+
+    db.fulfillCreditOrder(razorpay_order_id, razorpay_payment_id);
+    const newBal = db.updateUserCredits(req.userId, order.credits, 'purchase', 'Razorpay credit purchase', razorpay_payment_id);
+    res.json({ ok: true, credits: newBal });
+  } catch (e) {
+    console.error('[Credits verify]', e.message);
+    res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+app.post('/api/webhooks/razorpay', async (req, res) => {
+  try {
+    await db.initDb();
+    const webhookSec = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (webhookSec) {
+      const sig = req.headers['x-razorpay-signature'];
+      const exp = crypto.createHmac('sha256', webhookSec).update(req.body).digest('hex');
+      if (sig !== exp) return res.status(400).json({ error: 'Invalid signature' });
+    }
+    const payload = JSON.parse(req.body.toString());
+    const eventId = payload.id || `evt_${Date.now()}`;
+    if (db.isWebhookProcessed(eventId)) return res.json({ ok: true, skipped: true });
+    db.markWebhookProcessed(eventId);
+    if (payload.event === 'payment.captured') {
+      const payment = payload.payload?.payment?.entity;
+      if (payment) {
+        const order = db.getCreditOrder(payment.order_id);
+        if (order && !order.fulfilled) {
+          db.fulfillCreditOrder(payment.order_id, payment.id);
+          db.updateUserCredits(order.user_id, order.credits, 'purchase', 'Razorpay webhook', payment.id);
+        }
+      }
+    }
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: 'Webhook failed' }); }
+});
+
+// ── Guild Glory ───────────────────────────────────────────────────────────────
+app.get('/api/guild-glory/packages', (_, res) => res.json({ packages: GG_PACKAGES }));
+
+app.post('/api/guild-glory/orders', optionalAuth, async (req, res) => {
+  try {
+    await db.initDb();
+    const { packageKey, currency, telegram, guild_uid, utr } = req.body || {};
+    const pkg = GG_PACKAGES[packageKey];
+    if (!pkg) return res.status(400).json({ error: 'Invalid package' });
+    if (!['INR','USDT'].includes(String(currency||''))) return res.status(400).json({ error: 'Currency must be INR or USDT' });
+    if (!guild_uid || !String(guild_uid).trim()) return res.status(400).json({ error: 'Guild UID is required' });
+    if (!utr || !String(utr).trim()) return res.status(400).json({ error: currency === 'INR' ? 'UTR number is required' : 'Transaction/Order ID is required' });
+    const amount = currency === 'INR' ? `₹${pkg.inr}` : `$${pkg.usd} USDT`;
+    const orderRef = safeId();
+    const order = db.createGuildGloryOrder({
+      user_id: req.userId || null, order_ref: orderRef,
+      package_key: packageKey, package_name: pkg.name,
+      currency, amount,
+      guild_uid: String(guild_uid).trim().slice(0,32),
+      utr: String(utr).trim().slice(0,64),
+      telegram: String(telegram||'').trim().slice(0,64)
+    });
+    try { await notifyGuildGloryOrder(order); } catch (_) {}
+    res.json({ ok: true, order });
+  } catch (e) {
+    console.error('[GuildGlory]', e.message);
+    res.status(500).json({ error: 'Failed to create order' });
+  }
+});
+
+app.get('/api/guild-glory/orders', optionalAuth, async (req, res) => {
+  try {
+    await db.initDb();
+    if (req.query.ref) {
+      const order = db.getGuildGloryOrderByRef(req.query.ref);
+      return res.json({ order: order || null });
+    }
+    if (!req.userId) return res.json({ orders: [] });
+    res.json({ orders: db.getGuildGloryOrders(req.userId) });
+  } catch (_) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// Guild Glory proof submit
+app.post('/api/guild-glory/orders/:ref/proof', upload.single('proof'), async (req, res) => {
+  try {
+    await db.initDb();
+    const order = db.getGuildGloryOrderByRef(req.params.ref);
+    if (!order) {
+      if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+      return res.status(404).json({ error: 'Order not found' });
+    }
+    const utr = String(req.body.utr||order.utr||'').trim().slice(0,64);
+    if (!req.file) return res.status(400).json({ error: 'Screenshot required' });
+    const ext = req.file.mimetype === 'image/png' ? '.png' : '.jpg';
+    const finalName = `GG-${req.params.ref}${ext}`;
+    const finalPath = path.join(proofDir, finalName);
+    try { fs.renameSync(req.file.path, finalPath); } catch (_) { return res.status(500).json({ error: 'Save failed' }); }
+    const relativePath = path.join('data', 'proofs', finalName);
+    db.updateGuildGloryOrder(req.params.ref, { payment_status: 'proof_submitted', fulfillment_status: 'under_review', utr, proof: relativePath });
+    const updated = db.getGuildGloryOrderByRef(req.params.ref);
+    if (updated) {
+      try { await notifyGuildGloryOrder(updated); } catch (_) {}
+    }
+    res.json({ ok: true, order: updated });
+  } catch (e) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// ── Referral ──────────────────────────────────────────────────────────────────
+app.get('/api/referral', authMiddleware, async (req, res) => {
+  try {
+    await db.initDb();
+    const user = db.getUserById(req.userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const info = db.getReferralInfo(req.userId);
+    const siteUrl = process.env.SITE_URL || 'https://fflike.sbs';
+    res.json({
+      referralCode: user.referral_code,
+      referralLink: `${siteUrl}/free-likes?ref=${user.referral_code}`,
+      ...info
+    });
+  } catch (_) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// ── History ───────────────────────────────────────────────────────────────────
+app.get('/api/history', authMiddleware, async (req, res) => {
+  try {
+    await db.initDb();
+    res.json({
+      likes: db.getLikesHistory(req.userId),
+      credits: db.getCreditHistory(req.userId),
+      guildGlory: db.getGuildGloryOrders(req.userId),
+      referrals: db.getReferralInfo(req.userId)?.referrals || []
+    });
+  } catch (_) { res.status(500).json({ error: 'Failed' }); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  EXISTING ROUTES (preserved)
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get(['/api/config','/config'], (_, res) => res.json(publicConfig()));
+
+app.post(['/api/orders','/orders'], (req, res) => {
   const { plan, uid, server, telegram } = req.body || {};
   const p = PLANS[plan];
   if (!p) return res.status(400).json({ error: 'Invalid plan' });
-  if (!/^\d{5,15}$/.test(String(uid || ''))) return res.status(400).json({ error: 'Invalid UID' });
-  if (!SERVERS.includes(String(server || ''))) return res.status(400).json({ error: 'Invalid server' });
-  
+  if (!/^\d{5,15}$/.test(String(uid||''))) return res.status(400).json({ error: 'Invalid UID' });
+  if (!SERVERS.includes(String(server||''))) return res.status(400).json({ error: 'Invalid server' });
   const order = {
-    id: safeId(),
-    plan,
-    uid: String(uid).trim(),
-    server: String(server).trim(),
-    telegram: String(telegram || '').trim().slice(0, 64),
-    amount: p.inr,
-    likes: p.likes,
-    days: p.days,
-    status: 'awaiting_payment',
-    utr: '',
-    proof: '',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    id: safeId(), plan, uid: String(uid).trim(), server: String(server).trim(),
+    telegram: String(telegram||'').trim().slice(0,64),
+    amount: p.inr, likes: p.likes, days: p.days,
+    status: 'awaiting_payment', utr: '', proof: '',
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
   };
   const orders = readOrders();
   orders.unshift(order);
   writeOrders(orders);
-  res.json({
-    ok: true,
-    order,
-    payment: publicConfig().payment,
-    adminTelegram: publicConfig().contact.adminTelegram
-  });
+  res.json({ ok: true, order, payment: publicConfig().payment, adminTelegram: publicConfig().contact.adminTelegram });
 });
 
-app.post(['/api/orders/:id/proof', '/orders/:id/proof'], upload.single('proof'), async (req, res) => {
+app.post(['/api/orders/:id/proof','/orders/:id/proof'], upload.single('proof'), async (req, res) => {
   const orders = readOrders();
   const idx = orders.findIndex(o => o.id === req.params.id);
   if (idx < 0) {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
     return res.status(404).json({ error: 'Order not found' });
   }
-  const utr = String(req.body.utr || '').trim().slice(0, 64);
-  if (!utr) {
-    if (req.file) { try { fs.unlinkSync(req.file.path); } catch {} }
-    return res.status(400).json({ error: 'UTR/reference is required' });
-  }
-  if (!req.file) {
-    return res.status(400).json({ error: 'Payment screenshot is required' });
-  }
+  const utr = String(req.body.utr||'').trim().slice(0,64);
+  if (!utr) { if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {} return res.status(400).json({ error: 'UTR required' }); }
+  if (!req.file) return res.status(400).json({ error: 'Screenshot required' });
   const ext = req.file.mimetype === 'image/png' ? '.png' : req.file.mimetype === 'image/webp' ? '.webp' : '.jpg';
-  const finalName = `${req.params.id}${ext}`;
-  const finalPath = path.join(proofDir, finalName);
-  try {
-    fs.renameSync(req.file.path, finalPath);
-  } catch (err) {
-    return res.status(500).json({ error: 'Failed to save payment proof image' });
-  }
-  orders[idx].utr = utr;
-  orders[idx].proof = `/data/proofs/${finalName}`;
-  orders[idx].status = 'proof_submitted';
-  orders[idx].updatedAt = new Date().toISOString();
+  const finalPath = path.join(proofDir, `${req.params.id}${ext}`);
+  try { fs.renameSync(req.file.path, finalPath); } catch (_) { return res.status(500).json({ error: 'Save failed' }); }
+  orders[idx] = { ...orders[idx], utr, proof: `/data/proofs/${req.params.id}${ext}`, status: 'proof_submitted', updatedAt: new Date().toISOString() };
   writeOrders(orders);
-  try {
-    await notifyAdmin(orders[idx]);
-  } catch (e) {
-    console.error('[Telegram notify]', e.message);
-  }
+  try { await notifyAdmin(orders[idx]); } catch (e) { console.error('[Telegram notify]', e.message); }
   res.json({ ok: true, order: orders[idx] });
 });
 
-app.get(['/api/orders/:id', '/orders/:id'], (req, res) => {
+app.get(['/api/orders/:id','/orders/:id'], (req, res) => {
   const order = readOrders().find(o => o.id === req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found' });
-  res.json({
-    order: {
-      id: order.id,
-      plan: order.plan,
-      uid: order.uid,
-      server: order.server,
-      amount: order.amount,
-      status: order.status,
-      utr: order.utr,
-      createdAt: order.createdAt
-    }
-  });
+  res.json({ order: { id:order.id, plan:order.plan, uid:order.uid, server:order.server, amount:order.amount, status:order.status, utr:order.utr, createdAt:order.createdAt } });
 });
 
 function admin(req, res, next) {
   const key = req.headers['x-admin-key'] || req.query.key;
-  if (!process.env.ADMIN_KEY || key !== process.env.ADMIN_KEY) {
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
+  if (!process.env.ADMIN_KEY || key !== process.env.ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
   next();
 }
-
-app.get('/api/admin/orders', admin, (req, res) => res.json({ orders: readOrders() }));
-
+app.get('/api/admin/orders', admin, (_, res) => res.json({ orders: readOrders() }));
 app.post('/api/admin/orders/:id/status', admin, (req, res) => {
-  const allowed = ['awaiting_payment', 'proof_submitted', 'processing', 'completed', 'rejected'];
-  const status = String(req.body.status || '');
+  const allowed = ['awaiting_payment','proof_submitted','processing','completed','rejected'];
+  const status = String(req.body.status||'');
   if (!allowed.includes(status)) return res.status(400).json({ error: 'Invalid status' });
   const orders = readOrders();
   const idx = orders.findIndex(o => o.id === req.params.id);
   if (idx < 0) return res.status(404).json({ error: 'Order not found' });
-  orders[idx].status = status;
-  orders[idx].updatedAt = new Date().toISOString();
+  orders[idx] = { ...orders[idx], status, updatedAt: new Date().toISOString() };
   writeOrders(orders);
   res.json({ ok: true, order: orders[idx] });
 });
 
-app.get('/health', (req, res) => res.json({ ok: true, service: 'FF Auto Like Manual Checkout' }));
+app.get('/health', (_, res) => res.json({ ok: true, service: 'FF Auto Like + Guild Glory' }));
+app.use((err, req, res, next) => { if (err) return res.status(400).json({ error: err.message || 'Request failed' }); next(err); });
 
-app.use((err, req, res, next) => {
-  if (err) return res.status(400).json({ error: err.message || 'Request failed' });
-  next(err);
-});
-
+// ── Server Start ──────────────────────────────────────────────────────────────
 function startServer(port) {
-  const server = app.listen(port, () => console.log(`FF AUTO LIKE running on http://localhost:${server.address().port}`));
-  server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      const nextPort = port + 1;
-      console.warn(`Port ${port} is already in use. Trying ${nextPort}...`);
-      startServer(nextPort);
-    } else {
-      throw err;
-    }
+  const server = app.listen(port, () => console.log(`\n🎮 FF AUTO LIKE running on http://localhost:${server.address().port}\n`));
+  server.on('error', err => {
+    if (err.code === 'EADDRINUSE') startServer(port + 1);
+    else throw err;
   });
   return server;
 }
 
-if (!process.env.VERCEL) {
-  startServer(REQUESTED_PORT);
-
-  // Keep-Alive: Ping robots.txt every 10 minutes to maintain fast responses on Render
-  const pingUrl = process.env.RENDER_EXTERNAL_URL || 'https://fflike.sbs/robots.txt';
-  setInterval(() => {
-    fetch(pingUrl).catch(() => {});
-  }, 10 * 60 * 1000);
+if (!isVercel) {
+  db.initDb().then(() => {
+    startServer(REQUESTED_PORT);
+    const pingUrl = process.env.RENDER_EXTERNAL_URL || 'https://fflike.sbs/robots.txt';
+    setInterval(() => fetch(pingUrl).catch(() => {}), 10 * 60 * 1000);
+  }).catch(e => { console.error('[DB] Fatal:', e.message); process.exit(1); });
 }
 
 module.exports = app;

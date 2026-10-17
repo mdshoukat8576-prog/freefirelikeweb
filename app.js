@@ -25,10 +25,13 @@
     const links = [
       ['/', 'Home', isHome],
       ['/pricing', 'Plans', cleanPath === 'pricing' || cleanPath === 'pricing.html'],
+      ['/free-likes', '⚡ Free Likes', cleanPath === 'free-likes' || cleanPath === 'free-likes.html'],
+      ['/pricing#guild-glory', '🏆 Guild Glory', false],
       ['/how-it-works', 'How It Works', cleanPath === 'how-it-works' || cleanPath === 'how-it-works.html'],
       ['/faq', 'FAQ', cleanPath === 'faq' || cleanPath === 'faq.html'],
       ['/order-status', 'Status', cleanPath === 'order-status' || cleanPath === 'order-status.html'],
-      ['/contact', 'Support', cleanPath === 'contact' || cleanPath === 'contact.html']
+      ['/contact', 'Support', cleanPath === 'contact' || cleanPath === 'contact.html'],
+      ['/profile', 'Profile', cleanPath === 'profile' || cleanPath === 'profile.html']
     ];
     const linkHtml = links.map(([p, t, active]) => `<a class="${active ? 'active' : ''}" href="${p}">${t}</a>`).join('');
     return `<nav class="nav" aria-label="Main Navigation"><a class="brand" href="/" aria-label="FFLike Home"><img src="${C.brand.logo}" alt="${esc(C.brand.name)} logo" width="44" height="44"><span>${esc(C.brand.shortName)}</span></a><div class="navlinks">${linkHtml}</div><div class="nav-actions"><button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme" type="button">◐</button><a class="primary nav-order" href="/pricing">Buy Likes <span>↗</span></a><button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" type="button">☰</button></div></nav><div class="mobile-menu" id="mobileMenu" aria-hidden="true"><div class="mobile-menu-head"><span>MENU</span><button class="close" id="menuClose" aria-label="Close menu" type="button">×</button></div><div class="mobile-menu-links">${linkHtml}</div><a class="primary full mobile-buy" href="/pricing">Buy Auto Likes <span>↗</span></a></div>`;
@@ -71,6 +74,26 @@
     if (!$('nav.nav')) document.body.insertAdjacentHTML('afterbegin', header());
     if (!$('footer')) document.body.insertAdjacentHTML('beforeend', footer());
     if (!$('#scrollTopBtn')) document.body.insertAdjacentHTML('beforeend', '<button class="scroll-top-btn" id="scrollTopBtn" aria-label="Scroll to top" title="Scroll to top">↑</button>');
+
+    // Mount Back Button on ALL pages except homepage
+    const rawPath = location.pathname.replace(/\/+$/, '') || '/';
+    const isHomePage = rawPath === '/' || rawPath === '/index.html' || rawPath === '';
+    if (!isHomePage && !$('.page-back-btn')) {
+      const target = $('.page-hero .wrap') || $('.fl-wrap') || $('.profile-wrap') || $('main .wrap') || $('.wrap');
+      if (target) {
+        const btn = document.createElement('a');
+        btn.className = 'page-back-btn';
+        btn.href = '/';
+        btn.setAttribute('aria-label', 'Go back');
+        btn.innerHTML = '<span class="back-arrow">←</span> Back';
+        btn.onclick = function(e) {
+          e.preventDefault();
+          if (history.length > 1) history.back();
+          else location.href = '/';
+        };
+        target.insertAdjacentElement('afterbegin', btn);
+      }
+    }
     setupTheme();
   }
 

@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08090b">
+<title>My Profile — FFLike</title>
+<meta name="description" content="View your Free Fire likes history, credits, payments and referrals.">
+<meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://fflike.sbs/profile">
+<link rel="icon" type="image/x-icon" href="/favicon.ico">
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<style>
+.profile-wrap{max-width:860px;margin:0 auto;padding:20px 0 80px}
+.profile-header-card{display:flex;align-items:center;gap:20px;padding:24px 28px;border:1px solid var(--line);border-radius:24px;background:var(--panel);margin-bottom:28px;flex-wrap:wrap;gap:16px}
+.profile-avatar{width:72px;height:72px;border-radius:50%;object-fit:cover;border:2px solid var(--line2);flex-shrink:0}
+.profile-avatar-fb{width:72px;height:72px;border-radius:50%;background:var(--panel2);border:2px solid var(--line);display:grid;place-items:center;font:700 26px 'Space Grotesk';color:var(--muted);flex-shrink:0}
+.profile-info{flex:1;min-width:0}
+.profile-name{font:700 22px 'Space Grotesk';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.profile-meta{color:var(--muted);font-size:12px;margin-top:4px}
+.profile-verified{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;background:rgba(98,230,174,.1);border:1px solid rgba(98,230,174,.3);color:#62e6ae;font:600 10px 'Space Grotesk';margin-top:8px}
+.profile-credits-box{text-align:right;flex-shrink:0}
+.profile-credits-num{font:900 32px 'Outfit','Syne',sans-serif;color:#62e6ae;letter-spacing:-.02em;line-height:1}
+.profile-credits-label{color:var(--muted);font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+.profile-tabs{display:flex;gap:6px;margin-bottom:24px;flex-wrap:wrap}
+.profile-tab{padding:10px 18px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font:600 11px 'Space Grotesk';cursor:pointer;transition:.2s;white-space:nowrap}
+.profile-tab:hover{border-color:var(--line2);color:var(--text)}
+.profile-tab.active{background:var(--text);color:var(--bg);border-color:transparent}
+.profile-panel{display:none}.profile-panel.active{display:block}
+.history-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.history-table{width:100%;border-collapse:collapse;font-size:12px;min-width:520px}
+.history-table th{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);color:var(--muted);font:600 9px 'Space Grotesk';letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
+.history-table td{padding:12px;border-bottom:1px solid var(--line);color:var(--text);vertical-align:middle}
+.history-table tr:last-child td{border:none}
+.history-table tbody tr:hover td{background:var(--panel2)}
+.empty-state{text-align:center;padding:52px 20px;color:var(--muted)}
+.empty-state .empty-icon{font-size:40px;margin-bottom:14px;opacity:.5}
+.empty-state h3{font:600 16px 'Space Grotesk';margin-bottom:8px;color:var(--text)}
+.empty-state p{font-size:12px;line-height:1.7;max-width:320px;margin:0 auto}
+.status-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font:600 9px 'Space Grotesk';text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+.status-pill.pending{background:rgba(250,204,21,.1);border:1px solid rgba(250,204,21,.3);color:#facc15}
+.status-pill.success,.status-pill.completed,.status-pill.fulfilled{background:rgba(98,230,174,.1);border:1px solid rgba(98,230,174,.3);color:#62e6ae}
+.status-pill.failed,.status-pill.rejected{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444}
+.status-pill.processing{background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.3);color:#818cf8}
+.credit-plus{color:#62e6ae;font:700 12px 'Space Grotesk'}.credit-minus{color:#ef4444;font:700 12px 'Space Grotesk'}
+.referral-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+@media(max-width:480px){.referral-grid{grid-template-columns:1fr 1fr}}
+.ref-stat-card{padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--panel);text-align:center}
+.ref-stat-card .rsn{font:900 28px 'Outfit';color:var(--text)}
+.ref-stat-card .rsl{color:var(--muted);font-size:10px;letter-spacing:.1em;text-transform:uppercase;margin-top:4px}
+.ref-link-section{padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--panel2);margin-bottom:16px}
+.ref-link-section h3{font:700 14px 'Space Grotesk';margin-bottom:10px}
+.ref-link-row{display:flex;gap:8px}
+.ref-link-input{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--muted);font:400 11px monospace;cursor:text;min-width:0}
+.loading-row{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--muted);gap:10px;font-size:12px}
+.spinner{width:18px;height:18px;border:2px solid var(--line);border-top-color:var(--text);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.not-logged-box{text-align:center;padding:60px 20px;max-width:420px;margin:80px auto}
+.not-logged-box h2{font:700 24px 'Space Grotesk';margin-bottom:10px}
+.not-logged-box p{color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:24px}
+.logout-btn{padding:8px 18px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--muted);font:600 11px 'Space Grotesk';cursor:pointer;transition:.2s}
+.logout-btn:hover{border-color:var(--line2);color:var(--text)}
+</style>
+</head>
+<body>
+<nav class="nav" aria-label="Main Navigation"><a class="brand" href="/" aria-label="FFLike Home"><img src="assets/logo.png" alt="FREE FIRE AUTO LIKE logo" width="44" height="44"><span>AUTO LIKE</span></a><div class="navlinks"><a href="/">Home</a><a href="/pricing">Plans</a><a href="/free-likes">⚡ Free Likes</a><a href="/pricing#guild-glory">🏆 Guild Glory</a><a href="/how-it-works">How It Works</a><a href="/faq">FAQ</a><a href="/order-status">Status</a><a href="/contact">Support</a><a href="/profile">Profile</a></div><div class="nav-actions"><button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme" type="button">◐</button><a class="primary nav-order" href="/pricing">Buy Likes <span>↗</span></a><button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" type="button">☰</button></div></nav><div class="mobile-menu" id="mobileMenu" aria-hidden="true"><div class="mobile-menu-head"><span>MENU</span><button class="close" id="menuClose" aria-label="Close menu" type="button">×</button></div><div class="mobile-menu-links"><a href="/">Home</a><a href="/pricing">Plans</a><a href="/free-likes">⚡ Free Likes</a><a href="/pricing#guild-glory">🏆 Guild Glory</a><a href="/how-it-works">How It Works</a><a href="/faq">FAQ</a><a href="/order-status">Status</a><a href="/contact">Support</a><a href="/profile">Profile</a></div><a class="primary full mobile-buy" href="/pricing">Buy Auto Likes <span>↗</span></a></div>
+<div id="app"></div>
+
+<div class="not-logged-box" id="notLoggedBox" style="display:none">
+  <div style="margin-bottom:20px;text-align:left"><a class="page-back-btn" href="/" onclick="if(history.length>1){history.back();return false;}" aria-label="Go back to previous page"><span class="back-arrow">←</span> Back</a></div>
+  <div style="font-size:48px;margin-bottom:16px">🔐</div>
+  <h2>Login Required</h2>
+  <p>Connect your Telegram account to view your profile, credits, and order history.</p>
+  <a href="/free-likes" class="primary" style="display:inline-flex;align-items:center;gap:8px">Connect Telegram <span>↗</span></a>
+</div>
+
+<div id="profileRoot" style="display:none">
+  <div class="wrap profile-wrap">
+    <a class="page-back-btn" href="/" onclick="if(history.length>1){history.back();return false;}" aria-label="Go back to previous page"><span class="back-arrow">←</span> Back</a>
+
+    <!-- Profile Header -->
+    <div class="profile-header-card" id="profileHeader">
+      <div class="profile-avatar-fb" id="avatarEl">?</div>
+      <div class="profile-info">
+        <div class="profile-name" id="profileName">Loading…</div>
+        <div class="profile-meta" id="profileMeta"></div>
+        <div id="verifiedBadge" style="display:none">
+          <span class="profile-verified">✓ Channels Verified</span>
+        </div>
+      </div>
+      <div class="profile-credits-box">
+        <div class="profile-credits-num" id="creditsNum">0</div>
+        <div class="profile-credits-label">Credits</div>
+        <button class="logout-btn" id="logoutBtn" style="margin-top:10px" onclick="doLogout()">Logout</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="profile-tabs">
+      <button class="profile-tab active" onclick="switchTab('likes')">⚡ Likes History</button>
+      <button class="profile-tab" onclick="switchTab('credits')">💎 Credits</button>
+      <button class="profile-tab" onclick="switchTab('guilds')">🏆 Guild Glory</button>
+      <button class="profile-tab" onclick="switchTab('referrals')">🎁 Referrals</button>
+    </div>
+
+    <!-- Likes History Panel -->
+    <div class="profile-panel active" id="panel-likes">
+      <div class="loading-row" id="likes-loading"><div class="spinner"></div> Loading likes history…</div>
+      <div id="likes-content" style="display:none"></div>
+    </div>
+
+    <!-- Credits Panel -->
+    <div class="profile-panel" id="panel-credits">
+      <div class="loading-row" id="credits-loading"><div class="spinner"></div> Loading credit history…</div>
+      <div id="credits-content" style="display:none"></div>
+    </div>
+
+    <!-- Guild Glory Panel -->
+    <div class="profile-panel" id="panel-guilds">
+      <div class="loading-row" id="guilds-loading"><div class="spinner"></div> Loading Guild Glory orders…</div>
+      <div id="guilds-content" style="display:none"></div>
+    </div>
+
+    <!-- Referrals Panel -->
+    <div class="profile-panel" id="panel-referrals">
+      <div class="loading-row" id="referrals-loading"><div class="spinner"></div> Loading referral info…</div>
+      <div id="referrals-content" style="display:none"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const fmt = d => new Date(d).toLocaleString('en-IN', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+
+let currentUser = null;
+let tabLoaded = {};
+
+// Tab switching
+function switchTab(name) {
+  document.querySelectorAll('.profile-tab').forEach((b,i) => {
+    const tabs = ['likes','credits','guilds','referrals'];
+    b.classList.toggle('active', tabs[i] === name);
+  });
+  document.querySelectorAll('.profile-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('panel-' + name);
+  if (panel) panel.classList.add('active');
+  if (!tabLoaded[name]) { loadTab(name); tabLoaded[name] = true; }
+}
+
+async function loadTab(name) {
+  if (name === 'likes') await loadLikes();
+  else if (name === 'credits') await loadCredits();
+  else if (name === 'guilds') await loadGuilds();
+  else if (name === 'referrals') await loadReferrals();
+}
+
+// Likes history
+async function loadLikes() {
+  try {
+    const r = await fetch('/api/likes/history');
+    const data = await r.json();
+    const items = Array.isArray(data) ? data : (data.history || []);
+    $('#likes-loading').style.display = 'none';
+    const el = $('#likes-content');
+    el.style.display = 'block';
+    if (!items.length) {
+      el.innerHTML = emptyState('⚡', 'No Likes Yet', 'Your likes requests will appear here. Go to <a href="/free-likes">Free Likes</a> to get started.');
+      return;
+    }
+    el.innerHTML = `<div class="history-table-wrap"><table class="history-table">
+      <thead><tr>
+        <th>Date</th><th>Player / UID</th><th>Server</th><th>Level</th>
+        <th>Before</th><th>After</th><th>Given</th><th>Status</th>
+      </tr></thead>
+      <tbody>${items.map(row => `<tr>
+        <td style="white-space:nowrap">${fmt(row.created_at)}</td>
+        <td><strong>${esc(row.nickname||'—')}</strong><br><span style="color:var(--muted);font-size:10px">${esc(row.uid)}</span></td>
+        <td>${esc(row.region||'—')}</td>
+        <td>${esc(row.level||'—')}</td>
+        <td>${row.likes_before ?? '—'}</td>
+        <td>${row.likes_after ?? '—'}</td>
+        <td><strong style="color:#62e6ae">+${row.likes_given ?? 0}</strong></td>
+        <td>${statusPill(row.status)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) {
+    $('#likes-loading').style.display = 'none';
+    $('#likes-content').style.display = 'block';
+    $('#likes-content').innerHTML = errorBox('Could not load likes history.');
+  }
+}
+
+// Credits history
+async function loadCredits() {
+  try {
+    const r = await fetch('/api/history');
+    const data = await r.json();
+    const items = Array.isArray(data.credits) ? data.credits : [];
+    $('#credits-loading').style.display = 'none';
+    const el = $('#credits-content');
+    el.style.display = 'block';
+    if (!items.length) {
+      el.innerHTML = emptyState('💎', 'No Credit Transactions', 'When you earn or spend credits, the history will appear here.');
+      return;
+    }
+    el.innerHTML = `<div class="history-table-wrap"><table class="history-table">
+      <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Balance After</th><th>Reason</th></tr></thead>
+      <tbody>${items.map(row => `<tr>
+        <td style="white-space:nowrap">${fmt(row.created_at)}</td>
+        <td>${esc(row.type||'—')}</td>
+        <td class="${row.amount>0?'credit-plus':'credit-minus'}">${row.amount>0?'+':''}${row.amount}</td>
+        <td>${row.balance_after}</td>
+        <td style="color:var(--muted)">${esc(row.reason||'—')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) {
+    $('#credits-loading').style.display = 'none';
+    $('#credits-content').style.display = 'block';
+    $('#credits-content').innerHTML = errorBox('Could not load credit history.');
+  }
+}
+
+// Guild Glory orders
+async function loadGuilds() {
+  try {
+    const r = await fetch('/api/guild-glory/orders');
+    const data = await r.json();
+    const items = Array.isArray(data) ? data : (data.orders || []);
+    $('#guilds-loading').style.display = 'none';
+    const el = $('#guilds-content');
+    el.style.display = 'block';
+    if (!items.length) {
+      el.innerHTML = emptyState('🏆', 'No Guild Glory Orders', 'Purchase a Guild Glory package from <a href="/pricing#guild-glory">the store</a>.');
+      return;
+    }
+    el.innerHTML = `<div class="history-table-wrap"><table class="history-table">
+      <thead><tr><th>Date</th><th>Ref</th><th>Package</th><th>Currency</th><th>Amount</th><th>Payment</th><th>Fulfillment</th></tr></thead>
+      <tbody>${items.map(row => `<tr>
+        <td style="white-space:nowrap">${fmt(row.created_at)}</td>
+        <td><code style="font-size:10px">${esc(row.order_ref)}</code></td>
+        <td>${esc(row.package_name)}</td>
+        <td>${esc(row.currency)}</td>
+        <td><strong>${esc(row.amount)}</strong></td>
+        <td>${statusPill(row.payment_status)}</td>
+        <td>${statusPill(row.fulfillment_status)}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  } catch (e) {
+    $('#guilds-loading').style.display = 'none';
+    $('#guilds-content').style.display = 'block';
+    $('#guilds-content').innerHTML = errorBox('Could not load Guild Glory orders.');
+  }
+}
+
+// Referrals
+async function loadReferrals() {
+  try {
+    const r = await fetch('/api/referral');
+    const data = await r.json();
+    $('#referrals-loading').style.display = 'none';
+    const el = $('#referrals-content');
+    el.style.display = 'block';
+    const refLink = `${location.origin}/free-likes?ref=${esc(data.referral_code || '')}`;
+    el.innerHTML = `
+      <div class="referral-grid">
+        <div class="ref-stat-card"><div class="rsn">${data.total_referrals||0}</div><div class="rsl">Total Refs</div></div>
+        <div class="ref-stat-card"><div class="rsn">${data.completed_referrals||0}</div><div class="rsl">Completed</div></div>
+        <div class="ref-stat-card"><div class="rsn" style="color:#62e6ae">${data.credits_earned||0}</div><div class="rsl">Credits Earned</div></div>
+      </div>
+      <div class="ref-link-section">
+        <h3>Your Referral Link</h3>
+        <div class="ref-link-row">
+          <input class="ref-link-input" id="refLinkInput" readonly value="${refLink}">
+          <button class="secondary" onclick="copyRef()">Copy</button>
+        </div>
+        <p style="color:var(--muted);font-size:11px;margin-top:10px">Share this link — when a friend joins and verifies channels, you both earn credits!</p>
+      </div>
+      ${data.referrals && data.referrals.length ? `
+      <div class="history-table-wrap"><table class="history-table">
+        <thead><tr><th>Date</th><th>Referred User</th><th>Status</th><th>Reward</th></tr></thead>
+        <tbody>${data.referrals.map(row => `<tr>
+          <td>${fmt(row.created_at)}</td>
+          <td>${esc(row.referred_name||'User')}</td>
+          <td>${statusPill(row.status)}</td>
+          <td>${row.reward_claimed ? '<span class="credit-plus">+1 credit</span>' : '<span style="color:var(--muted)">Pending</span>'}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>` : ''}
+    `;
+  } catch (e) {
+    $('#referrals-loading').style.display = 'none';
+    $('#referrals-content').style.display = 'block';
+    $('#referrals-content').innerHTML = errorBox('Could not load referral data.');
+  }
+}
+
+function copyRef() {
+  const inp = document.getElementById('refLinkInput');
+  if (!inp) return;
+  navigator.clipboard.writeText(inp.value).then(() => {
+    const btn = inp.nextElementSibling;
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); }
+  });
+}
+
+function statusPill(s) {
+  const label = (s||'unknown').replace(/_/g,' ');
+  return `<span class="status-pill ${esc(s||'pending')}">${esc(label)}</span>`;
+}
+function emptyState(icon, title, msg) {
+  return `<div class="empty-state"><div class="empty-icon">${icon}</div><h3>${esc(title)}</h3><p>${msg}</p></div>`;
+}
+function errorBox(msg) {
+  return `<div style="padding:16px;border:1px solid rgba(239,68,68,.3);border-radius:14px;background:rgba(239,68,68,.08);color:#ef4444;font-size:13px">${esc(msg)}</div>`;
+}
+
+async function doLogout() {
+  try { await fetch('/api/auth/logout', {method:'POST'}); } catch {}
+  window.location.href = '/free-likes';
+}
+
+// Init
+async function init() {
+  try {
+    const r = await fetch('/api/auth/me');
+    const data = await r.json();
+    if (!data || !data.id) {
+      document.getElementById('notLoggedBox').style.display = 'block';
+      return;
+    }
+    currentUser = data;
+    document.getElementById('profileRoot').style.display = 'block';
+
+    // Avatar
+    const avatarEl = document.getElementById('avatarEl');
+    if (data.photo_url) {
+      avatarEl.outerHTML = `<img class="profile-avatar" id="avatarEl" src="${esc(data.photo_url)}" alt="Avatar" onerror="this.style.display='none'">`;
+    } else {
+      avatarEl.textContent = (data.name || '?')[0].toUpperCase();
+    }
+
+    document.getElementById('profileName').textContent = data.name || 'Unknown';
+    document.getElementById('profileMeta').innerHTML = `
+      ${data.username ? `@${esc(data.username)} · ` : ''}ID: ${esc(String(data.telegram_id))}
+    `;
+    if (data.channels_verified) document.getElementById('verifiedBadge').style.display = 'block';
+    document.getElementById('creditsNum').textContent = data.credits ?? 0;
+
+    // Load first tab
+    tabLoaded['likes'] = true;
+    await loadLikes();
+  } catch (e) {
+    document.getElementById('notLoggedBox').style.display = 'block';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

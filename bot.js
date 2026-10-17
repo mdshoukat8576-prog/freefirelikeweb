@@ -91,10 +91,12 @@ async function handleCallback(q){
   try { await api('sendMessage',{chat_id:ADMIN_CHAT_ID,text:`<b>${statusLabel}</b>\nOrder <code>${esc(updated.id)}</code>\nUID <code>${esc(updated.uid)}</code> · ${esc(updated.server)}\nPlan: ${esc(updated.plan)}`,parse_mode:'HTML'}); } catch {}
 }
 
-let offset=0;
+let offset=0, pollBackoff=2000, pollStopped=false;
 async function poll(){
+  if (pollStopped) return;
   try {
     const updates=await api('getUpdates',{timeout:25,offset,allowed_updates:['message','callback_query']});
+    pollBackoff=2000; // reset on success
     for(const u of updates){
       offset=u.update_id+1;
       if(u.callback_query){ await handleCallback(u.callback_query); continue; }
@@ -109,10 +111,19 @@ async function poll(){
       }
     }
   } catch (e) {
-    console.error('[Telegram]',e.message);
-    await new Promise(r=>setTimeout(r, Math.max(2000,BOT_POLL_MS)));
+    // If Unauthorized, bot token is revoked/invalid — stop polling, don't spam logs
+    if (e.message && (e.message.includes('Unauthorized') || e.message.includes('401'))) {
+      if (!pollStopped) {
+        console.error('[Telegram] Bot token invalid/revoked — polling DISABLED. Update BOT_TOKEN in .env to re-enable.');
+        pollStopped = true;
+      }
+      return;
+    }
+    pollBackoff = Math.min(pollBackoff * 2, 60000); // exponential backoff up to 60s
+    console.error('[Telegram] poll error (retry in', Math.round(pollBackoff/1000), 's):', e.message);
+    await new Promise(r=>setTimeout(r, pollBackoff));
   }
-  setImmediate(poll);
+  if (!pollStopped) setImmediate(poll);
 }
 
 async function start(){
@@ -130,5 +141,61 @@ async function start(){
   poll();
 }
 
-module.exports = { notifyAdmin };
+module.exports = { notifyAdmin, notifyGuildGloryOrder, checkChannelMembership };
 start();
+
+async function checkChannelMembership(telegramId, channelUsername) {
+  if (!BOT_TOKEN) return false;
+  try {
+    const channel = channelUsername.startsWith('@') ? channelUsername : `@${channelUsername}`;
+    const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getChatMember?chat_id=${encodeURIComponent(channel)}&user_id=${encodeURIComponent(telegramId)}`);
+    const data = await r.json();
+    if (!data.ok) return false;
+    const status = data.result && data.result.status;
+    return ['member', 'administrator', 'creator'].includes(status);
+  } catch (e) {
+    console.error('[Telegram] checkChannelMembership error:', e.message);
+    return false;
+  }
+}
+
+async function notifyGuildGloryOrder(order) {
+  if (!BOT_TOKEN || !ADMIN_CHAT_ID) return;
+  const esc2 = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const text = [
+    '🏆 <b>NEW GUILD GLORY ORDER</b>', '',
+    `<b>Ref:</b> <code>${esc2(order.order_ref)}</code>`,
+    `<b>Package:</b> ${esc2(order.package_name)}`,
+    `<b>Currency:</b> ${esc2(order.currency)}`,
+    `<b>Amount:</b> ${esc2(order.amount)}`,
+    `<b>Guild UID:</b> <code>${esc2(order.guild_uid || 'Not provided')}</code>`,
+    `<b>${order.currency === 'INR' ? 'UTR' : 'Txn/Order ID'}:</b> <code>${esc2(order.utr || 'Not provided')}</code>`,
+    `<b>Telegram:</b> ${esc2(order.telegram || 'Not provided')}`,
+    `<b>Status:</b> ${esc2(order.payment_status || 'pending')}`,
+    `<b>Created:</b> ${esc2(new Date(order.created_at || Date.now()).toLocaleString('en-IN'))}`
+  ].join('\n');
+
+  if (order.proof) {
+    const filePath = path.join(__dirname, order.proof.replace(/^\/?data[\\/]?/, 'data/'));
+    if (fs.existsSync(filePath)) {
+      try {
+        const form = new FormData();
+        form.append('chat_id', ADMIN_CHAT_ID);
+        form.append('caption', text);
+        form.append('parse_mode', 'HTML');
+        form.append('photo', new Blob([fs.readFileSync(filePath)]), path.basename(filePath));
+        const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {method:'POST', body:form});
+        const data = await r.json();
+        if (data.ok) return;
+      } catch (err) {
+        console.error('[Telegram] notifyGuildGloryOrder photo send failed:', err.message);
+      }
+    }
+  }
+
+  try {
+    await api('sendMessage', { chat_id: ADMIN_CHAT_ID, text, parse_mode: 'HTML' });
+  } catch (e) {
+    console.error('[Telegram] notifyGuildGloryOrder error:', e.message);
+  }
+}

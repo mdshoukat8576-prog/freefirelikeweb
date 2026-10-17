@@ -4,141 +4,502 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#08090b">
-<title>Auto Likes for Free Fire — 200 Likes Daily Service | FFLike</title>
-<meta name="description" content="Get 200 likes every day on your Free Fire profile with FFLike. Safe, UID-only delivery across IND, BR, US, SG, BD, PK servers. Manual UPI QR checkout and instant verification.">
-<meta name="keywords" content="fflike, ff auto like, free fire auto like, buy free fire likes, free fire likes, ff profile likes, 200 likes daily ff, daily free fire likes, safe ff likes, no password free fire likes">
-<meta name="robots" content="index, follow, max-image-preview:large">
+<title>Free Likes — FFLike | Free Fire Daily Likes</title>
+<meta name="description" content="Get free Fire Fire likes by connecting your Telegram account. Join required channels and claim your free credits.">
+<meta name="robots" content="index, follow">
 <link rel="canonical" href="https://fflike.sbs/free-likes">
-
-<!-- Favicon & App Icons -->
 <link rel="icon" type="image/x-icon" href="/favicon.ico">
-<link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png">
-<link rel="manifest" href="/site.webmanifest">
-
-<!-- Open Graph / Facebook -->
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://fflike.sbs/free-likes">
-<meta property="og:site_name" content="FFLike">
-<meta property="og:title" content="Auto Likes for Free Fire — 200 Likes Daily Service | FFLike">
-<meta property="og:description" content="Boost your in-game profile with 200 Free Fire likes delivered daily. Safe, UID-based, with manual QR payment verification and 24/7 support.">
-<meta property="og:image" content="https://fflike.sbs/assets/logo.png">
-
-<!-- Twitter Cards -->
-<meta name="twitter:card" content="summary">
-<meta name="twitter:url" content="https://fflike.sbs/free-likes">
-<meta name="twitter:title" content="Free Fire Auto Likes — FFLike">
-<meta name="twitter:description" content="200 likes every day for Free Fire players worldwide. Check plans and order now.">
-<meta name="twitter:image" content="https://fflike.sbs/assets/logo.png">
-
-<link rel="stylesheet" href="/styles.css">
-<script src="/config.js"></script>
-
-<!-- Structured Data: BreadcrumbList -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "BreadcrumbList",
-      "itemListElement": [
-        { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://fflike.sbs/" },
-        { "@type": "ListItem", "position": 2, "name": "Auto Likes", "item": "https://fflike.sbs/free-likes" }
-      ]
-    }
-  ]
-}
-</script>
+<link rel="stylesheet" href="styles.css">
+<script src="config.js"></script>
+<style>
+.fl-wrap{max-width:640px;margin:0 auto;padding:20px 0 80px}
+.fl-state{display:none}.fl-state.active{display:block}
+.tg-connect-box{text-align:center;padding:40px 24px;border:1px solid var(--line);border-radius:24px;background:var(--panel);margin-top:20px}
+.tg-connect-box h2{font:700 22px "Space Grotesk";margin-bottom:10px}
+.tg-connect-box p{color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:24px;max-width:420px;margin-inline:auto}
+.tg-btn-wrap{display:flex;justify-content:center;margin:10px 0}
+.tg-profile-card{display:flex;align-items:center;gap:14px;padding:16px 18px;border:1px solid var(--line);border-radius:20px;background:var(--panel);margin-bottom:18px}
+.tg-avatar{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--line2);flex-shrink:0}
+.tg-avatar-fb{width:52px;height:52px;border-radius:50%;background:var(--panel2);border:2px solid var(--line);display:grid;place-items:center;font:700 18px "Space Grotesk";color:var(--muted);flex-shrink:0}
+.tg-info{flex:1;min-width:0}.tg-info .tg-name{font:700 16px "Space Grotesk";white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tg-info .tg-meta{color:var(--muted);font-size:11px;margin-top:3px}
+.credit-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;background:rgba(98,230,174,.12);border:1px solid rgba(98,230,174,.3);color:#62e6ae;font:700 14px "Space Grotesk";flex-shrink:0}
+.channel-list{display:grid;gap:8px;margin:14px 0}
+.channel-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:var(--panel2);transition:.25s}
+.channel-item.verified{border-color:rgba(98,230,174,.4)}
+.channel-item .ch-icon{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#229ED9,#0F86C3);display:grid;place-items:center;font-size:16px;flex-shrink:0}
+.channel-item .ch-info{flex:1}.channel-item .ch-name{font:600 13px "Space Grotesk"}
+.channel-item .ch-status{font-size:10px;color:var(--muted);margin-top:1px}
+.channel-item.verified .ch-status{color:#62e6ae}
+.channel-item .ch-join{padding:7px 14px;border-radius:10px;background:rgba(34,158,217,.15);border:1px solid rgba(34,158,217,.3);color:#229ED9;font:600 11px "Space Grotesk";text-decoration:none;white-space:nowrap;transition:.2s}
+.channel-item .ch-join:hover{background:rgba(34,158,217,.3)}
+.likes-form .form{margin-top:16px}
+.likes-result{margin-top:18px;padding:20px;border:1px solid var(--line);border-radius:20px;background:var(--panel);animation:sheetIn .4s ease}
+.likes-result .result-header{font:700 14px "Space Grotesk";color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.1em}
+.result-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.result-row:last-child{border:none}
+.result-row span{color:var(--muted)}.result-row strong{color:var(--text);text-align:right;max-width:60%;overflow:hidden;text-overflow:ellipsis}
+.likes-given-num{text-align:center;font:900 42px "Outfit","Syne",sans-serif;color:#62e6ae;padding:10px 0 4px;letter-spacing:-.02em}
+.likes-given-label{text-align:center;color:var(--muted);font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:14px}
+.buy-credits-box{margin-top:22px;padding:20px;border:1px solid var(--line);border-radius:20px;background:var(--panel2)}
+.buy-credits-box h3{font:700 15px "Space Grotesk";margin-bottom:12px}
+.credits-input-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
+.credit-price-line{color:var(--muted);font-size:11px;margin:8px 0 12px}
+.referral-box{margin-top:18px;padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--panel2)}
+.referral-box h3{font:700 14px "Space Grotesk";margin-bottom:10px}
+.referral-link-wrap{display:flex;gap:8px}
+.referral-link-input{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--muted);font-size:11px;font-family:monospace;cursor:text}
+.ref-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.ref-stat{padding:12px;border:1px solid var(--line);border-radius:12px;text-align:center;background:var(--panel)}
+.ref-stat b{display:block;font:700 18px "Outfit";color:var(--text)}
+.ref-stat small{color:var(--muted);font-size:9px;letter-spacing:.1em;text-transform:uppercase}
+.success-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:rgba(98,230,174,.12);border:1px solid rgba(98,230,174,.3);color:#62e6ae;font:600 11px "Space Grotesk"}
+.warn-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;background:rgba(250,204,21,.1);border:1px solid rgba(250,204,21,.3);color:#facc15;font:600 11px "Space Grotesk"}
+.err-box{padding:14px;border:1px solid rgba(239,68,68,.3);border-radius:14px;background:rgba(239,68,68,.08);color:#ef4444;font-size:13px}
+.history-mini{margin-top:20px}
+.history-mini h3{font:700 14px "Space Grotesk";margin-bottom:10px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.history-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12px}
+.history-row:last-child{border:none}
+.history-row .h-uid{font:600 13px "Space Grotesk";color:var(--text)}
+.history-row .h-meta{color:var(--muted);flex:1}
+.history-row .h-likes{font:700 13px "Outfit";color:#62e6ae}
+.history-row .h-status{font-size:10px;color:var(--muted)}
+</style>
 </head>
 <body>
-<nav class="nav" aria-label="Main Navigation">
-  <a class="brand" href="/" aria-label="FFLike Home">
-    <img src="/assets/logo.png" alt="FREE FIRE AUTO LIKE logo" width="44" height="44">
-    <span>AUTO LIKE</span>
-  </a>
-  <div class="navlinks">
-    <a href="/">Home</a>
-    <a href="/pricing">Plans</a>
-    <a href="/how-it-works">How It Works</a>
-    <a href="/faq">FAQ</a>
-    <a href="/order-status">Status</a>
-    <a href="/contact">Support</a>
-  </div>
-  <div class="nav-actions">
-    <button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme" type="button">◐</button>
-    <a class="primary nav-order" href="/pricing">Buy Likes <span>↗</span></a>
-    <button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" type="button">☰</button>
-  </div>
-</nav>
+<nav class="nav" aria-label="Main Navigation"><a class="brand" href="/" aria-label="FFLike Home"><img src="assets/logo.png" alt="FREE FIRE AUTO LIKE logo" width="44" height="44"><span>AUTO LIKE</span></a><div class="navlinks"><a href="/">Home</a><a href="/pricing">Plans</a><a href="/free-likes">⚡ Free Likes</a><a href="/pricing#guild-glory">🏆 Guild Glory</a><a href="/how-it-works">How It Works</a><a href="/faq">FAQ</a><a href="/order-status">Status</a><a href="/contact">Support</a><a href="/profile">Profile</a></div><div class="nav-actions"><button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme" type="button">◐</button><a class="primary nav-order" href="/pricing">Buy Likes <span>↗</span></a><button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" type="button">☰</button></div></nav><div class="mobile-menu" id="mobileMenu" aria-hidden="true"><div class="mobile-menu-head"><span>MENU</span><button class="close" id="menuClose" aria-label="Close menu" type="button">×</button></div><div class="mobile-menu-links"><a href="/">Home</a><a href="/pricing">Plans</a><a href="/free-likes">⚡ Free Likes</a><a href="/pricing#guild-glory">🏆 Guild Glory</a><a href="/how-it-works">How It Works</a><a href="/faq">FAQ</a><a href="/order-status">Status</a><a href="/contact">Support</a><a href="/profile">Profile</a></div><a class="primary full mobile-buy" href="/pricing">Buy Auto Likes <span>↗</span></a></div>
+<main style="padding-top:100px">
+<div class="fl-wrap wrap">
+  <a class="page-back-btn" href="/" onclick="if(history.length>1){history.back();return false;}" aria-label="Go back to previous page"><span class="back-arrow">←</span> Back</a>
 
-<div class="mobile-menu" id="mobileMenu" aria-hidden="true">
-  <div class="mobile-menu-head">
-    <span>MENU</span>
-    <button class="close" id="menuClose" aria-label="Close menu" type="button">×</button>
+  <!-- STATE 0: Loading -->
+  <div class="fl-state active" id="stateLoading">
+    <div style="text-align:center;padding:60px 20px;color:var(--muted)">
+      <div class="spinner" style="width:24px;height:24px;border-width:3px;margin:0 auto 16px"></div>
+      <p>Loading…</p>
+    </div>
   </div>
-  <div class="mobile-menu-links">
-    <a href="/">Home</a>
-    <a href="/pricing">Plans</a>
-    <a href="/how-it-works">How It Works</a>
-    <a href="/faq">FAQ</a>
-    <a href="/order-status">Status</a>
-    <a href="/contact">Support</a>
-  </div>
-  <a class="primary full mobile-buy" href="/pricing">Buy Auto Likes <span>↗</span></a>
-</div>
 
-<main>
-<section class="page-hero">
-  <div class="wrap">
-    <a class="page-back-btn" href="/" onclick="if(history.length>1){history.back();return false;}" aria-label="Go back to previous page"><span class="back-arrow">←</span> Back</a>
-    <h1>200 LIKES<br>EVERY DAY.</h1>
-    <p>Choose a duration plan, enter your UID and server, and receive steady daily Free Fire profile likes with manual UPI QR verification.</p>
+  <!-- STATE 1: Not connected -->
+  <div class="fl-state" id="stateConnect">
+    <div class="page-hero" style="padding:0 0 28px;background:none">
+      <span class="eyebrow"><i class="live-dot"></i> FREE LIKES</span>
+      <h1 style="font:800 clamp(36px,7vw,64px)/.92 'Outfit','Syne',sans-serif;letter-spacing:-.04em;margin:14px 0 12px">GET FREE<br><span class="hero-gradient">DAILY LIKES</span></h1>
+      <p style="color:var(--muted);font-size:14px;line-height:1.75;max-width:500px">Connect your Telegram, join our channels, and get 1 free credit to send likes to any Free Fire UID.</p>
+    </div>
+    <div class="tg-connect-box">
+      <div style="font-size:40px;margin-bottom:14px">🎮</div>
+      <h2>Connect Telegram to Continue</h2>
+      <p>We use Telegram to verify your identity and check channel membership. No password required.</p>
+      <div class="tg-btn-wrap" id="tgWidgetWrap">
+        <div id="tg-widget-placeholder" style="color:var(--muted);font-size:12px">Loading Telegram widget…</div>
+      </div>
+      <div id="connectError" style="display:none;margin-top:12px"></div>
+      <p style="margin-top:18px;font-size:11px;color:var(--muted)">✓ No password &nbsp;·&nbsp; ✓ Secure HMAC verification &nbsp;·&nbsp; ✓ 7-day session</p>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px">
+      <div class="service-card small" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <span style="font-size:24px">🔗</span><h3 style="font:700 14px 'Space Grotesk'">Connect</h3><p style="color:var(--muted);font-size:11px">Link your Telegram account securely</p>
+      </div>
+      <div class="service-card small" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <span style="font-size:24px">✅</span><h3 style="font:700 14px 'Space Grotesk'">Join Channels</h3><p style="color:var(--muted);font-size:11px">Join 4 required Telegram channels</p>
+      </div>
+      <div class="service-card small" style="flex-direction:column;align-items:flex-start;gap:8px">
+        <span style="font-size:24px">👍</span><h3 style="font:700 14px 'Space Grotesk'">Get Likes</h3><p style="color:var(--muted);font-size:11px">Use credits to send likes to any UID</p>
+      </div>
+    </div>
   </div>
-</section>
 
-<section style="padding-top:25px">
-  <div class="wrap">
-    <div class="service-card service-main reveal" data-tilt>
-      <div class="service-number">200</div>
-      <div class="service-unit">LIKES / DAY</div>
-      <p>Pick your duration, enter your numeric UID and regional server, pay the exact amount via UPI QR code, and submit your UTR reference for instant verification.</p>
-      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
-        <a class="primary" href="/pricing">View Auto Like Plans ↗</a>
-        <a class="secondary" href="/how-it-works">See How Delivery Works ↗</a>
+  <!-- STATE 2: Connected, not verified -->
+  <div class="fl-state" id="stateVerify">
+    <div id="profileCard2" class="tg-profile-card"></div>
+    <div class="service-card" style="padding:22px">
+      <span class="eyebrow">Step 2 of 2</span>
+      <h2 style="font:700 20px 'Space Grotesk';margin:10px 0 6px">Join Required Channels</h2>
+      <p style="color:var(--muted);font-size:13px;line-height:1.65;margin-bottom:16px">Join all 4 channels below, then click Verify to claim your free credit.</p>
+      <div class="channel-list" id="channelList">
+        <div class="channel-item" data-ch="riyazapi" data-url="https://t.me/riyazapi">
+          <div class="ch-icon">✈️</div>
+          <div class="ch-info"><div class="ch-name">@riyazapi</div><div class="ch-status">Not joined</div></div>
+          <a class="ch-join" href="https://t.me/riyazapi" target="_blank" rel="noopener">JOIN</a>
+        </div>
+        <div class="channel-item" data-ch="riyazlike" data-url="https://t.me/riyazlike">
+          <div class="ch-icon">👍</div>
+          <div class="ch-info"><div class="ch-name">@riyazlike</div><div class="ch-status">Not joined</div></div>
+          <a class="ch-join" href="https://t.me/riyazlike" target="_blank" rel="noopener">JOIN</a>
+        </div>
+        <div class="channel-item" data-ch="autolikegrp" data-url="https://t.me/autolikegrp">
+          <div class="ch-icon">🔥</div>
+          <div class="ch-info"><div class="ch-name">@autolikegrp</div><div class="ch-status">Not joined</div></div>
+          <a class="ch-join" href="https://t.me/autolikegrp" target="_blank" rel="noopener">JOIN</a>
+        </div>
+        <div class="channel-item" data-ch="orewaaizennn" data-url="https://t.me/orewaaizennn">
+          <div class="ch-icon">⚡</div>
+          <div class="ch-info"><div class="ch-name">@orewaaizennn</div><div class="ch-status">Not joined</div></div>
+          <a class="ch-join" href="https://t.me/orewaaizennn" target="_blank" rel="noopener">JOIN</a>
+        </div>
+      </div>
+      <div id="verifyResult" style="margin-bottom:12px"></div>
+      <button class="primary full" id="verifyBtn" type="button">
+        Verify Membership <span>→</span>
+      </button>
+      <p style="margin-top:10px;font-size:11px;color:var(--muted);text-align:center">After joining all channels, click Verify. You'll get 1 free credit instantly.</p>
+    </div>
+  </div>
+
+  <!-- STATE 3: Ready (verified + credits) -->
+  <div class="fl-state" id="stateReady">
+    <div id="profileCard3" class="tg-profile-card"></div>
+
+    <div class="service-card" style="padding:22px;margin-bottom:16px">
+      <span class="eyebrow">Free Likes</span>
+      <h2 style="font:700 18px 'Space Grotesk';margin:8px 0 14px">Send Likes to UID</h2>
+      <form class="form" id="likesForm">
+        <div class="field">
+          <label for="likesUid">Free Fire UID</label>
+          <input id="likesUid" type="text" inputmode="numeric" placeholder="Enter 5-15 digit UID" maxlength="15" required>
+        </div>
+        <div class="field">
+          <label for="likesRegion">Server / Region</label>
+          <select id="likesRegion" required>
+            <option value="">Select server…</option>
+          </select>
+        </div>
+        <div id="likesError" style="display:none" class="err-box"></div>
+        <button class="primary full" type="submit" id="likesBtn">
+          Send Likes <span>↗</span>
+        </button>
+      </form>
+      <div id="likesResult" style="margin-top:14px"></div>
+    </div>
+
+    <!-- Buy Credits -->
+    <div class="buy-credits-box">
+      <h3>💳 Buy More Credits</h3>
+      <p style="color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:14px">1 credit = ₹5 · Use credits to send likes to any UID anytime</p>
+      <div class="credits-input-row">
+        <div class="field" style="margin:0">
+          <label for="creditsQty">Credits to Buy</label>
+          <input id="creditsQty" type="number" min="1" max="1000" value="10" placeholder="Enter quantity">
+        </div>
+        <button class="primary" id="buyCreditsBtn" type="button" style="min-height:48px;margin-top:21px">Pay Now</button>
+      </div>
+      <div class="credit-price-line" id="creditPriceLine">Total: ₹50</div>
+      <div id="buyCreditsResult"></div>
+    </div>
+
+    <!-- Referral -->
+    <div class="referral-box" id="referralBox" style="display:none">
+      <h3>👥 Refer Friends, Earn Credits</h3>
+      <p style="color:var(--muted);font-size:12px;margin-bottom:10px">Share your referral link. When friends join + verify, both get 1 credit.</p>
+      <div class="referral-link-wrap">
+        <input class="referral-link-input" id="referralLinkInput" readonly>
+        <button class="copy-btn" id="copyReferralBtn" type="button" data-copy="">Copy</button>
+      </div>
+      <div class="ref-stats" id="refStats">
+        <div class="ref-stat"><b id="refTotal">0</b><small>Total</small></div>
+        <div class="ref-stat"><b id="refCompleted">0</b><small>Completed</small></div>
+        <div class="ref-stat"><b id="refCredits">0</b><small>Credits Earned</small></div>
       </div>
     </div>
 
-    <div class="direct-answer-box reveal" style="margin-top:40px">
-      <div class="direct-answer-badge">DIRECT SERVICE SPECIFICATION</div>
-      <p><strong>FFLike Auto Likes</strong> delivers <strong>200 cosmetic profile likes every 24 hours</strong> directly to your public numeric Free Fire UID. Plans range from 1 day (200 likes) to 90 days (18,000 likes). We never require passwords, Facebook/Google credentials, or OTP codes. Payments are conducted via manual UPI QR codes with <strong>instant human verification</strong>, backed by <strong>24/7 Telegram support (<a href="https://t.me/riyaznx" target="_blank" rel="noopener">@riyaznx</a>)</strong> and an unconditional <strong>100% full UPI refund policy</strong>.</p>
+    <!-- History -->
+    <div class="history-mini" id="historyMini" style="display:none">
+      <h3>Recent Requests</h3>
+      <div id="historyList"></div>
+      <a href="/profile" style="font-size:12px;color:var(--muted);display:block;margin-top:10px;text-align:center">View full history →</a>
     </div>
   </div>
-</section>
+
+</div>
 </main>
 
-<footer>
-  <div class="wrap footer-row">
-    <div>
-      <div>© 2026 FREE FIRE AUTO LIKE — FFLike</div>
-      <div class="footer-disclaimer" style="margin-top:6px;font-size:10px;opacity:.7">Disclaimer: FFLike is an independent third-party service providing cosmetic profile likes. Not affiliated with, endorsed by, or partnered with Garena or Free Fire.</div>
-    </div>
-    <div class="footer-links">
-      <a href="/">Home</a>
-      <a href="/pricing">Plans</a>
-      <a href="/how-it-works">How It Works</a>
-      <a href="/faq">FAQ</a>
-      <a href="/order-status">Order Status</a>
-      <a href="/about">About</a>
-      <a href="/blog">Guides</a>
-      <a href="/contact">Support</a>
-      <a href="/terms-of-service">Terms</a>
-      <a href="/privacy-policy">Privacy</a>
-      <a href="/refund-policy">Refunds</a>
-      <a href="https://t.me/riyaznx" target="_blank" rel="noopener">Telegram</a>
-    </div>
-  </div>
-</footer>
-<script src="/app.js"></script>
+<script>
+// Telegram Login Widget callback — MUST be defined before widget loads
+function onTelegramAuth(user) {
+  const refCode = localStorage.getItem('ff_ref') || '';
+  fetch('/api/auth/telegram', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...user, ref_code: refCode })
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      localStorage.removeItem('ff_ref');
+      window.__flUser = data.user;
+      renderState();
+    } else {
+      document.getElementById('connectError').textContent = data.error || 'Auth failed';
+      document.getElementById('connectError').style.display = 'block';
+    }
+  }).catch(() => {
+    document.getElementById('connectError').textContent = 'Connection error. Please try again.';
+    document.getElementById('connectError').style.display = 'block';
+  });
+}
+</script>
+
+<!-- Telegram Login Widget -->
+<script async src="https://telegram.org/js/telegram-widget.js?22"
+  data-telegram-login="riyazstorebot"
+  data-size="large"
+  data-onauth="onTelegramAuth(user)"
+  data-request-access="write">
+</script>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+  // Capture ?ref= param
+  const urlRef = new URLSearchParams(location.search).get('ref');
+  if (urlRef) localStorage.setItem('ff_ref', urlRef);
+
+  let user = window.__flUser || null;
+
+  function setState(id) {
+    document.querySelectorAll('.fl-state').forEach(el => el.classList.remove('active'));
+    const el = document.getElementById(id);
+    if (el) el.classList.add('active');
+  }
+
+  function avatarHtml(u, size = 52) {
+    if (u && u.photo_url) return `<img class="tg-avatar" src="${esc(u.photo_url)}" width="${size}" height="${size}" alt="">`;
+    const initials = (u?.name || 'U').charAt(0).toUpperCase();
+    return `<div class="tg-avatar-fb" style="width:${size}px;height:${size}px">${initials}</div>`;
+  }
+
+  function profileCardHtml(u) {
+    const credits = Number(u.credits) || 0;
+    return `
+      ${avatarHtml(u)}
+      <div class="tg-info">
+        <div class="tg-name">${esc(u.name)}</div>
+        <div class="tg-meta">${u.username ? '@' + esc(u.username) + ' · ' : ''}ID: ${esc(u.telegram_id)}</div>
+      </div>
+      <div class="credit-badge">${credits} Credit${credits !== 1 ? 's' : ''}</div>`;
+  }
+
+  function renderState() {
+    if (!user) {
+      setState('stateConnect');
+      loadTgWidget();
+      return;
+    }
+    const credits = Number(user.credits) || 0;
+    const verified = Number(user.channels_verified);
+
+    if (!verified) {
+      $('#profileCard2').innerHTML = profileCardHtml(user);
+      setState('stateVerify');
+    } else {
+      $('#profileCard3').innerHTML = profileCardHtml(user);
+      populateRegions();
+      loadReferral();
+      loadHistory();
+      setState('stateReady');
+    }
+  }
+
+  function loadTgWidget() {
+    // Widget loads async via script tag above; just show placeholder for a moment
+    const wrap = $('#tgWidgetWrap');
+    if (!wrap) return;
+    // Check if widget already loaded
+    setTimeout(() => {
+      const ph = document.getElementById('tg-widget-placeholder');
+      if (ph && !document.querySelector('iframe[src*="telegram"]')) {
+        ph.textContent = 'If button does not appear, please refresh.';
+      }
+    }, 3000);
+  }
+
+  function populateRegions() {
+    const sel = $('#likesRegion');
+    if (!sel || sel.options.length > 1) return;
+    const servers = window.STORE_CONFIG?.servers || [['🇮🇳','IND'],['🇧🇩','BD'],['🇧🇷','BR'],['🇺🇸','US'],['🇸🇬','SG']];
+    servers.forEach(([flag, code]) => {
+      const opt = document.createElement('option');
+      opt.value = code; opt.textContent = `${flag} ${code}`;
+      sel.appendChild(opt);
+    });
+  }
+
+  // Verify membership
+  $('#verifyBtn')?.addEventListener('click', async () => {
+    const btn = $('#verifyBtn');
+    const result = $('#verifyResult');
+    btn.disabled = true;
+    btn.innerHTML = 'Verifying… <span class="spinner"></span>';
+    result.innerHTML = '';
+    try {
+      const r = await fetch('/api/membership/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const data = await r.json();
+      if (data.verified) {
+        // Update channel statuses
+        if (data.channels) {
+          data.channels.forEach(ch => {
+            const el = document.querySelector(`[data-ch="${ch.name.replace('@','')}"]`);
+            if (el && ch.joined) { el.classList.add('verified'); el.querySelector('.ch-status').textContent = '✓ Verified'; }
+          });
+        }
+        result.innerHTML = `<div style="margin-bottom:10px" class="success-pill">✓ All channels verified!${data.creditGranted ? ' +1 credit granted' : ''}</div>`;
+        setTimeout(async () => {
+          const me = await (await fetch('/api/auth/me')).json();
+          if (me.user) { user = me.user; renderState(); }
+        }, 1200);
+      } else {
+        const unjoined = (data.channels || []).filter(c => !c.joined).map(c => c.name).join(', ');
+        result.innerHTML = `<div class="err-box">Please join: <b>${unjoined}</b> then try again.</div>`;
+        if (data.channels) {
+          data.channels.forEach(ch => {
+            const el = document.querySelector(`[data-ch="${ch.name.replace('@','')}"]`);
+            if (el) { el.querySelector('.ch-status').textContent = ch.joined ? '✓ Verified' : '✗ Not joined'; if (ch.joined) el.classList.add('verified'); }
+          });
+        }
+      }
+    } catch (_) {
+      result.innerHTML = '<div class="err-box">Verification failed. Please try again.</div>';
+    }
+    btn.disabled = false;
+    btn.innerHTML = 'Verify Membership <span>→</span>';
+  });
+
+  // Likes form
+  $('#likesForm')?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const uid = $('#likesUid')?.value.trim();
+    const region = $('#likesRegion')?.value;
+    const errEl = $('#likesError');
+    const resultEl = $('#likesResult');
+    const btn = $('#likesBtn');
+
+    errEl.style.display = 'none'; resultEl.innerHTML = '';
+    if (!/^\d{5,15}$/.test(uid)) { errEl.textContent = 'Enter a valid 5-15 digit UID'; errEl.style.display='block'; return; }
+    if (!region) { errEl.textContent = 'Select a region'; errEl.style.display='block'; return; }
+
+    btn.disabled = true;
+    btn.innerHTML = 'Sending… <span class="spinner"></span>';
+
+    try {
+      const r = await fetch('/api/likes/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, region })
+      });
+      const data = await r.json();
+      if (!r.ok) { errEl.textContent = data.error || 'Request failed'; errEl.style.display='block'; }
+      else {
+        user.credits = data.credits;
+        $('#profileCard3').innerHTML = profileCardHtml(user);
+        if (data.likesGiven > 0) {
+          resultEl.innerHTML = `<div class="likes-result">
+            <div class="likes-given-num">${data.likesGiven}</div>
+            <div class="likes-given-label">Likes Sent 🎉</div>
+            <div class="result-row"><span>Player</span><strong>${esc(data.nickname)}</strong></div>
+            <div class="result-row"><span>UID</span><strong>${esc(data.uid)}</strong></div>
+            <div class="result-row"><span>Region</span><strong>${esc(data.region)}</strong></div>
+            <div class="result-row"><span>Level</span><strong>${data.level}</strong></div>
+            <div class="result-row"><span>Likes Before</span><strong>${Number(data.likesBefore).toLocaleString()}</strong></div>
+            <div class="result-row"><span>Likes After</span><strong>${Number(data.likesAfter).toLocaleString()}</strong></div>
+            <div class="result-row"><span>Credits Left</span><strong style="color:#62e6ae">${data.credits}</strong></div>
+          </div>`;
+        } else {
+          resultEl.innerHTML = `<div class="err-box" style="color:var(--muted);border-color:var(--line)">⚠️ ${esc(data.message)}</div>`;
+        }
+        loadHistory();
+      }
+    } catch (_) { errEl.textContent = 'Network error. Please try again.'; errEl.style.display='block'; }
+
+    btn.disabled = false;
+    btn.innerHTML = 'Send Likes <span>↗</span>';
+  });
+
+  // Buy credits
+  $('#creditsQty')?.addEventListener('input', () => {
+    const qty = parseInt($('#creditsQty')?.value, 10) || 0;
+    $('#creditPriceLine').textContent = `Total: ₹${qty * 5}`;
+  });
+
+  $('#buyCreditsBtn')?.addEventListener('click', async () => {
+    const credits = parseInt($('#creditsQty')?.value, 10);
+    const resultEl = $('#buyCreditsResult');
+    if (!credits || credits < 1) { resultEl.innerHTML = '<div class="err-box" style="margin-top:8px">Enter valid quantity</div>'; return; }
+    try {
+      const r = await fetch('/api/credits/order', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credits })
+      });
+      const data = await r.json();
+      if (data.setup || data.error) {
+        resultEl.innerHTML = `<div class="err-box" style="margin-top:8px">${data.error || 'Payment not configured. Contact admin.'}</div>`;
+        return;
+      }
+      if (data.ok && data.orderId) {
+        const options = {
+          key: data.keyId, amount: data.amount, currency: 'INR',
+          name: 'FFLike Credits', description: `${credits} credits`, order_id: data.orderId,
+          handler: async function(resp) {
+            const vr = await fetch('/api/credits/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(resp) });
+            const vd = await vr.json();
+            if (vd.ok) { user.credits = vd.credits; $('#profileCard3').innerHTML = profileCardHtml(user); resultEl.innerHTML = `<div style="color:#62e6ae;margin-top:8px;font-size:13px">✅ ${credits} credits added! Balance: ${vd.credits}</div>`; }
+            else resultEl.innerHTML = `<div class="err-box" style="margin-top:8px">${vd.error}</div>`;
+          },
+          prefill: user ? { name: user.name, contact: '' } : {},
+          theme: { color: '#7c5cff' }
+        };
+        if (window.Razorpay) { new window.Razorpay(options).open(); }
+        else { const s = document.createElement('script'); s.src='https://checkout.razorpay.com/v1/checkout.js'; s.onload = () => new window.Razorpay(options).open(); document.head.appendChild(s); }
+      }
+    } catch (_) { resultEl.innerHTML = '<div class="err-box" style="margin-top:8px">Payment failed. Try again.</div>'; }
+  });
+
+  async function loadReferral() {
+    try {
+      const r = await fetch('/api/referral');
+      const data = await r.json();
+      if (data.referralLink) {
+        const box = $('#referralBox'); if (box) box.style.display = 'block';
+        const inp = $('#referralLinkInput'); if (inp) inp.value = data.referralLink;
+        const cpyBtn = $('#copyReferralBtn'); if (cpyBtn) { cpyBtn.dataset.copy = data.referralLink; cpyBtn.onclick = () => { navigator.clipboard?.writeText(data.referralLink); cpyBtn.textContent = 'Copied!'; setTimeout(() => cpyBtn.textContent = 'Copy', 2000); }; }
+        if ($('#refTotal')) $('#refTotal').textContent = data.total_referrals || 0;
+        if ($('#refCompleted')) $('#refCompleted').textContent = data.completed_referrals || 0;
+        if ($('#refCredits')) $('#refCredits').textContent = data.credits_earned || 0;
+      }
+    } catch (_) {}
+  }
+
+  async function loadHistory() {
+    try {
+      const r = await fetch('/api/likes/history');
+      const data = await r.json();
+      const list = $('#historyList');
+      const box = $('#historyMini');
+      if (!list || !box) return;
+      if (!data.history || !data.history.length) { box.style.display = 'none'; return; }
+      box.style.display = 'block';
+      list.innerHTML = data.history.slice(0,5).map(h => `
+        <div class="history-row">
+          <div><div class="h-uid">${esc(h.uid)}</div><div class="h-meta">${esc(h.region)} · Lv.${h.level||'?'} · ${new Date(h.created_at||Date.now()).toLocaleDateString()}</div></div>
+          <div class="h-likes">+${h.likes_given||0}</div>
+        </div>`).join('');
+    } catch (_) {}
+  }
+
+  async function init() {
+    // Check existing session
+    try {
+      const r = await fetch('/api/auth/me');
+      const data = await r.json();
+      if (data.user) user = data.user;
+    } catch (_) {}
+    renderState();
+  }
+
+  init();
+})();
+</script>
 </body>
 </html>

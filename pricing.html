@@ -66,7 +66,7 @@
 </script>
 </head>
 <body>
-<nav class="nav" aria-label="Main Navigation"><a class="brand" href="/" aria-label="FFLike Home"><img src="assets/logo.png" alt="FREE FIRE AUTO LIKE logo" width="44" height="44"><span>AUTO LIKE</span></a><div class="navlinks"><a class="" href="/">Home</a><a class="active" href="/pricing">Plans</a><a class="" href="/how-it-works">How It Works</a><a class="" href="/faq">FAQ</a><a class="" href="/order-status">Status</a><a class="" href="/contact">Support</a></div><div class="nav-actions"><button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme" type="button">◐</button><a class="primary nav-order" href="/pricing">Buy Likes <span>↗</span></a><button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" type="button">☰</button></div></nav><div class="mobile-menu" id="mobileMenu" aria-hidden="true"><div class="mobile-menu-head"><span>MENU</span><button class="close" id="menuClose" aria-label="Close menu" type="button">×</button></div><div class="mobile-menu-links"><a class="" href="/">Home</a><a class="active" href="/pricing">Plans</a><a class="" href="/how-it-works">How It Works</a><a class="" href="/faq">FAQ</a><a class="" href="/order-status">Status</a><a class="" href="/contact">Support</a></div><a class="primary full mobile-buy" href="/pricing">Buy Auto Likes <span>↗</span></a></div>
+<nav class="nav" aria-label="Main Navigation"><a class="brand" href="/" aria-label="FFLike Home"><img src="assets/logo.png" alt="FREE FIRE AUTO LIKE logo" width="44" height="44"><span>AUTO LIKE</span></a><div class="navlinks"><a href="/">Home</a><a href="/pricing">Plans</a><a href="/free-likes">⚡ Free Likes</a><a href="/pricing#guild-glory">🏆 Guild Glory</a><a href="/how-it-works">How It Works</a><a href="/faq">FAQ</a><a href="/order-status">Status</a><a href="/contact">Support</a><a href="/profile">Profile</a></div><div class="nav-actions"><button class="icon-btn" id="themeBtn" aria-label="Toggle light or dark theme" type="button">◐</button><a class="primary nav-order" href="/pricing">Buy Likes <span>↗</span></a><button class="icon-btn menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" type="button">☰</button></div></nav><div class="mobile-menu" id="mobileMenu" aria-hidden="true"><div class="mobile-menu-head"><span>MENU</span><button class="close" id="menuClose" aria-label="Close menu" type="button">×</button></div><div class="mobile-menu-links"><a href="/">Home</a><a href="/pricing">Plans</a><a href="/free-likes">⚡ Free Likes</a><a href="/pricing#guild-glory">🏆 Guild Glory</a><a href="/how-it-works">How It Works</a><a href="/faq">FAQ</a><a href="/order-status">Status</a><a href="/contact">Support</a><a href="/profile">Profile</a></div><a class="primary full mobile-buy" href="/pricing">Buy Auto Likes <span>↗</span></a></div>
 <main>
 <section class="page-hero">
   <div class="wrap">
@@ -78,16 +78,339 @@
 
 <section style="padding-top:25px">
   <div class="wrap">
-    <div class="cards" id="plans"></div>
-    
-    <div class="policy-strip" style="margin-top:25px;padding:18px 22px;border-radius:18px;background:var(--panel);border:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;font-size:12px;color:var(--muted)">
-      <div><strong style="color:var(--text);display:block">✓ Instant Verification</strong>Human check starts immediately upon UTR submission.</div>
-      <div><strong style="color:var(--text);display:block">✓ 24/7 Human Support</strong>Reach out on Telegram anytime at @riyaznx.</div>
-      <div><strong style="color:var(--text);display:block">✓ 100% Full Refund</strong>Full refund if delivery fails on a confirmed valid UID.</div>
-      <div><strong style="color:var(--text);display:block">✓ Numeric UID Only</strong>Zero passwords or account credentials ever needed.</div>
+    <!-- Tab Switcher -->
+    <div class="store-tabs">
+      <button class="store-tab active" id="tabAutoLikes" onclick="switchTab('auto')">⚡ Auto Likes</button>
+      <button class="store-tab" id="tabGuildGlory" onclick="switchTab('guild')">🏆 Guild Glory</button>
+    </div>
+
+    <!-- Auto Likes Panel -->
+    <div id="panelAutoLikes">
+      <div class="cards" id="plans"></div>
+      <div class="policy-strip" style="margin-top:25px;padding:18px 22px;border-radius:18px;background:var(--panel);border:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;font-size:12px;color:var(--muted)">
+        <div><strong style="color:var(--text);display:block">✓ Instant Verification</strong>Human check starts immediately upon UTR submission.</div>
+        <div><strong style="color:var(--text);display:block">✓ 24/7 Human Support</strong>Reach out on Telegram anytime at @riyaznx.</div>
+        <div><strong style="color:var(--text);display:block">✓ 100% Full Refund</strong>Full refund if delivery fails on a confirmed valid UID.</div>
+        <div><strong style="color:var(--text);display:block">✓ Numeric UID Only</strong>Zero passwords or account credentials ever needed.</div>
+      </div>
+    </div>
+
+    <!-- Guild Glory Panel -->
+    <div id="panelGuildGlory" style="display:none">
+      <div class="gg-grid">
+        <div class="gg-card">
+          <div class="gg-name">4 Bots · 1 Squad</div>
+          <div class="gg-desc">Guild Glory 100K–200K</div>
+          <div class="gg-price-inr">₹150</div>
+          <div class="gg-price-usd">$6 USD</div>
+          <button class="primary gg-buy" onclick="openGGModal('1squad')">BUY NOW ↗</button>
+        </div>
+        <div class="gg-card">
+          <div class="gg-name">4 Bots · 2 Squads</div>
+          <div class="gg-desc">Guild Glory 200K–300K</div>
+          <div class="gg-price-inr">₹289</div>
+          <div class="gg-price-usd">$7 USD</div>
+          <button class="primary gg-buy" onclick="openGGModal('2squads')">BUY NOW ↗</button>
+        </div>
+        <div class="gg-card best-value">
+          <div class="gg-badge">BEST VALUE</div>
+          <div class="gg-name">6 Bots · 3 Squads</div>
+          <div class="gg-desc">Level 1→7 Direct — 500K Glory</div>
+          <div class="gg-price-inr">₹700</div>
+          <div class="gg-price-usd">$11 USD</div>
+          <button class="primary gg-buy" onclick="openGGModal('3squads')">BUY NOW ↗</button>
+        </div>
+        <div class="gg-card">
+          <div class="gg-name">8 Bots · 4 Squads</div>
+          <div class="gg-desc">Full 1 Million Guild Glory Boost</div>
+          <div class="gg-price-inr">₹1,400</div>
+          <div class="gg-price-usd">$16 USD</div>
+          <button class="primary gg-buy" onclick="openGGModal('4squads')">BUY NOW ↗</button>
+        </div>
+      </div>
+      <div style="margin-top:20px;padding:16px 20px;border-radius:16px;background:var(--panel);border:1px solid var(--line);font-size:12px;color:var(--muted)">
+        <strong style="color:var(--text)">🏆 Guild Glory Boost</strong> — Delivered via bot squads joining your guild and contributing glory. Contact <a href="https://t.me/riyaznx" target="_blank" style="color:var(--text)">@riyaznx</a> on Telegram after ordering for delivery setup.
+      </div>
     </div>
   </div>
 </section>
+
+<!-- Guild Glory Payment Modal -->
+<div class="modal" id="ggModal" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="sheet">
+    <div class="payment-stage">
+      <div class="payment-head">
+        <div>
+          <h3 id="ggModalHeadTitle">Pay ₹150</h3>
+          <p class="modal-price" id="ggModalHeadDesc">4 Bots · 1 Squad · Guild Glory</p>
+        </div>
+        <button class="close" onclick="closeGGModal()" aria-label="Close payment modal" type="button">×</button>
+      </div>
+
+      <!-- Currency Switcher Tabs -->
+      <div class="currency-tabs" style="margin-bottom:16px">
+        <button class="currency-tab active" id="tabINR" type="button" onclick="switchCurrency('INR')">🇮🇳 INR (UPI QR)</button>
+        <button class="currency-tab" id="tabUSDT" type="button" onclick="switchCurrency('USDT')">💰 USDT (Binance Pay)</button>
+      </div>
+
+      <div class="payment-grid">
+        <!-- Left: QR Code Box -->
+        <div class="qr-box">
+          <div id="qrBoxINR">
+            <div class="qr-wrap">
+              <img src="assets/payment-qr.png" alt="UPI Payment QR Code">
+            </div>
+            <div class="pay-name">Mohhamad Riyaz</div>
+            <div style="margin-top:10px">
+              <a class="copy-btn qr-dl-btn" href="assets/payment-qr.png" download="FFLike-UPI-QR.png" target="_blank" rel="noopener" style="display:inline-block">Download QR ⤓</a>
+            </div>
+          </div>
+          <div id="qrBoxUSDT" style="display:none">
+            <div class="qr-wrap">
+              <img src="assets/binance-qr.png" alt="Binance USDT QR Code">
+            </div>
+            <div class="pay-name">Binance Pay (USDT BEP20)</div>
+            <div style="margin-top:10px">
+              <button class="copy-btn" data-copy="1224877861" type="button">ID: 1224877861 · Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Payment Details & Verification Form -->
+        <div>
+          <div class="amount-line">
+            <span>Pay exactly</span>
+            <strong id="ggExactAmount">₹150</strong>
+          </div>
+          <div id="payRowINR" class="upi-row">
+            <span>UPI ID</span>
+            <button class="copy-btn" data-copy="riyaznxx@nyes" type="button">riyaznxx@nyes · Copy</button>
+          </div>
+          <div id="payRowUSDT" class="upi-row" style="display:none">
+            <span>Binance ID</span>
+            <button class="copy-btn" data-copy="1224877861" type="button">1224877861 · Copy</button>
+          </div>
+
+          <ol class="pay-steps">
+            <li id="step1Text">Scan the QR code or pay to the UPI ID.</li>
+            <li id="step2Text">Pay exactly ₹150.</li>
+            <li>Enter your Guild UID & payment reference number.</li>
+            <li>Upload the payment screenshot (optional) and submit.</li>
+          </ol>
+
+          <form id="ggOrderForm" class="form">
+            <input type="hidden" id="ggPackageKey" name="packageKey">
+            <input type="hidden" id="ggCurrency" name="currency" value="INR">
+            <div class="field">
+              <label for="ggGuildUid">Your Guild UID <span style="color:#ef4444">*</span></label>
+              <input id="ggGuildUid" name="guild_uid" required inputmode="numeric" placeholder="Enter your in-game Guild UID">
+            </div>
+            <div class="field">
+              <label for="ggUtr" id="labelUtr">UTR / Transaction Reference <span style="color:#ef4444">*</span></label>
+              <input id="ggUtr" name="utr" required placeholder="Enter 12-digit UTR / reference" maxlength="64">
+            </div>
+            <div class="field">
+              <label for="ggProofFile">Payment Screenshot (Optional)</label>
+              <input id="ggProofFile" name="proof" type="file" accept="image/png,image/jpeg,image/webp">
+            </div>
+            <div class="field">
+              <label for="ggTelegram">Telegram Username (Optional)</label>
+              <input id="ggTelegram" name="telegram" placeholder="@username (for order updates)" maxlength="64">
+            </div>
+            <button class="primary full" type="submit" id="ggSubmitBtn">Verify Payment <span>↗</span></button>
+          </form>
+        </div>
+      </div>
+
+      <div id="postGGProofArea"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const GG_PACKAGES = {
+  '1squad': { name: '4 Bots · 1 Squad', inr: 150, usd: 6, desc: 'Guild Glory 100K–200K' },
+  '2squads': { name: '4 Bots · 2 Squads', inr: 289, usd: 7, desc: 'Guild Glory 200K–300K' },
+  '3squads': { name: '6 Bots · 3 Squads', inr: 700, usd: 11, desc: 'Level 1→7 Direct — 500K Glory' },
+  '4squads': { name: '8 Bots · 4 Squads', inr: 1400, usd: 16, desc: 'Full 1 Million Guild Glory Boost' }
+};
+let _ggCurrency = 'INR';
+
+function switchTab(tab) {
+  document.getElementById('panelAutoLikes').style.display = tab === 'auto' ? '' : 'none';
+  document.getElementById('panelGuildGlory').style.display = tab === 'guild' ? '' : 'none';
+  document.getElementById('tabAutoLikes').classList.toggle('active', tab === 'auto');
+  document.getElementById('tabGuildGlory').classList.toggle('active', tab === 'guild');
+  if (tab === 'guild' && location.hash !== '#guild-glory') {
+    history.replaceState(null, '', '#guild-glory');
+  }
+}
+
+function openGGModal(pkgKey) {
+  const pkg = GG_PACKAGES[pkgKey];
+  if (!pkg) return;
+  document.getElementById('ggPackageKey').value = pkgKey;
+  updateGGModalView(pkgKey, _ggCurrency);
+  // Reset form state in case previous order was placed
+  const postArea = document.getElementById('postGGProofArea');
+  if (postArea) postArea.innerHTML = '';
+  document.getElementById('ggModal').setAttribute('aria-hidden', 'false');
+  document.getElementById('ggModal').classList.add('open');
+  document.getElementById('ggModal').style.display = 'grid';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeGGModal() {
+  const m = document.getElementById('ggModal');
+  m.setAttribute('aria-hidden', 'true');
+  m.classList.remove('open');
+  m.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function updateGGModalView(pkgKey, cur) {
+  const pkg = GG_PACKAGES[pkgKey];
+  if (!pkg) return;
+  const isINR = cur === 'INR';
+  const amtStr = isINR ? `₹${pkg.inr}` : `$${pkg.usd} USDT`;
+
+  document.getElementById('ggModalHeadTitle').textContent = `Pay ${amtStr}`;
+  document.getElementById('ggModalHeadDesc').textContent = `${pkg.name} · ${pkg.desc}`;
+  document.getElementById('ggExactAmount').textContent = amtStr;
+  document.getElementById('step1Text').textContent = isINR ? 'Scan the QR code or pay to the UPI ID.' : 'Scan the Binance QR or pay to Binance ID.';
+  document.getElementById('step2Text').textContent = `Pay exactly ${amtStr}.`;
+  document.getElementById('labelUtr').innerHTML = (isINR ? 'UTR Number ' : 'Binance Order / Txn ID ') + '<span style="color:#ef4444">*</span>';
+  document.getElementById('ggUtr').placeholder = isINR ? 'Enter 12-digit UPI UTR number' : 'Enter Binance transaction / order ID';
+
+  document.getElementById('qrBoxINR').style.display = isINR ? '' : 'none';
+  document.getElementById('qrBoxUSDT').style.display = isINR ? 'none' : '';
+  document.getElementById('payRowINR').style.display = isINR ? '' : 'none';
+  document.getElementById('payRowUSDT').style.display = isINR ? 'none' : '';
+}
+
+function switchCurrency(cur) {
+  _ggCurrency = cur;
+  document.getElementById('ggCurrency').value = cur;
+  document.getElementById('tabINR').classList.toggle('active', cur === 'INR');
+  document.getElementById('tabUSDT').classList.toggle('active', cur === 'USDT');
+  const pkgKey = document.getElementById('ggPackageKey').value;
+  if (pkgKey) updateGGModalView(pkgKey, cur);
+}
+
+document.getElementById('ggModal').addEventListener('click', function(e) {
+  if (e.target === this) closeGGModal();
+});
+
+document.getElementById('ggOrderForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const guildUid = document.getElementById('ggGuildUid').value.trim();
+  if (!guildUid) { alert('Please enter your Guild UID'); return; }
+  const currency = document.getElementById('ggCurrency').value;
+  const paymentRef = document.getElementById('ggUtr').value.trim();
+  if (!paymentRef) { alert(currency === 'INR' ? 'Please enter UTR number' : 'Please enter Binance Txn/Order ID'); return; }
+  const pkgKey = document.getElementById('ggPackageKey').value;
+  const pkg = GG_PACKAGES[pkgKey] || { name: 'Guild Glory Boost' };
+  const telegramHandle = document.getElementById('ggTelegram').value.trim();
+
+  const btn = document.getElementById('ggSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = 'Verifying payment <span class="spinner"></span>';
+
+  try {
+    const r = await fetch('/api/guild-glory/orders', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        packageKey: pkgKey,
+        currency: currency,
+        guild_uid: guildUid,
+        utr: paymentRef,
+        telegram: telegramHandle
+      })
+    });
+    const out = await r.json();
+    if (!r.ok) throw new Error(out.error || 'Order submission failed');
+
+    const orderRef = out.order.order_ref;
+
+    // Upload screenshot if selected
+    const proofFile = document.getElementById('ggProofFile').files[0];
+    if (proofFile) {
+      try {
+        const fd = new FormData();
+        fd.append('proof', proofFile);
+        fd.append('utr', paymentRef);
+        await fetch(`/api/guild-glory/orders/${encodeURIComponent(orderRef)}/proof`, {
+          method: 'POST',
+          body: fd
+        });
+      } catch (_) {}
+    }
+
+    // Build Telegram pre-filled message
+    const msg = encodeURIComponent(
+      `Hello, I have paid for my Free Fire Guild Glory order.\n\n` +
+      `Order ID: ${orderRef}\n` +
+      `Package: ${pkg.name}\n` +
+      `Amount: ${out.order.amount}\n` +
+      `Currency: ${out.order.currency}\n` +
+      `Guild UID: ${guildUid}\n` +
+      `UTR: ${paymentRef}\n` +
+      `Telegram: ${telegramHandle || 'Not provided'}\n\n` +
+      `Payment proof has been recorded on the website. I am attaching the confirmation here for verification.`
+    );
+
+    // Transform form to exact success state matching Auto Like flow
+    const form = document.getElementById('ggOrderForm');
+    form.innerHTML = '<div class="success-box"><strong>Payment proof submitted ✓</strong><span>Your payment proof and UTR have been recorded. Please tap <b>Send Order to Telegram</b> below to start delivery.</span></div>';
+
+    const postArea = document.getElementById('postGGProofArea');
+    if (postArea) {
+      postArea.innerHTML = `
+        <div class="payment-actions" style="margin-top:16px">
+          <a class="primary pulse-highlight" id="ggTgProof" href="https://t.me/riyaznx?text=${msg}" target="_blank" rel="noopener">Send Order to Telegram ↗</a>
+          <button class="glass-btn" id="ggCopyOrder" data-copy="${orderRef}" type="button">Copy Order ID</button>
+        </div>
+      `;
+    }
+
+    // Bind copy button
+    const copyBtn = document.getElementById('ggCopyOrder');
+    if (copyBtn) {
+      copyBtn.onclick = function() {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(orderRef).then(() => {
+            copyBtn.textContent = 'Copied!';
+            setTimeout(() => { copyBtn.textContent = 'Copy Order ID'; }, 2000);
+          });
+        }
+      };
+    }
+
+  } catch(err) {
+    alert(err.message || 'Failed to submit order');
+    btn.disabled = false;
+    btn.innerHTML = 'Verify Payment <span>↗</span>';
+  }
+});
+
+// Auto-open guild tab if hash present
+if (location.hash === '#guild-glory') switchTab('guild');
+
+// Bind copy buttons in modal
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('[data-copy]');
+  if (btn && btn.id !== 'ggCopyOrder') {
+    const val = btn.dataset.copy;
+    if (navigator.clipboard) navigator.clipboard.writeText(val).then(() => {
+      const orig = btn.textContent;
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = orig; }, 2000);
+    }).catch(()=>{});
+  }
+});
+</script>
+
 
 <section>
   <div class="wrap">
