@@ -11,7 +11,7 @@ const envExPath = path.join(__dirname, '.env.example');
 if (fs.existsSync(envPath)) require('dotenv').config({ path: envPath });
 else if (fs.existsSync(envExPath)) require('dotenv').config({ path: envExPath });
 
-const { notifyAdmin, notifyAdminMessage, notifyGuildGloryOrder, notifyCreditPurchaseOrder, checkChannelMembership, processTelegramUpdate, createPendingAuthToken, getPendingAuthToken, consumePendingAuthToken } = require('./bot');
+const { notifyAdmin, notifyAdminMessage, notifyGuildGloryOrder, notifyCreditPurchaseOrder, checkChannelMembership, processTelegramUpdate, createPendingAuthToken, getPendingAuthToken, consumePendingAuthToken, fetchTelegramUserProfilePhoto } = require('./bot');
 const db = require('./db');
 const cloudStore = require('./cloudStore');
 const { authMiddleware, optionalAuth, verifyTelegramLogin, setSessionCookie, clearSessionCookie, verifyLoginToken } = require('./auth');
@@ -176,6 +176,60 @@ function withDb(fn) {
 //  NEW ROUTES
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ── Telegram Avatar Proxy & Permanent Cache ───────────────────────────────────
+app.get('/api/avatar/:telegramId', async (req, res) => {
+  const tid = String(req.params.telegramId || '').trim().replace(/[^\d]/g, '');
+  if (!tid) return res.status(400).send('Invalid Telegram ID');
+
+  const avatarPath = path.join(proofDir, `avatar_${tid}.jpg`);
+
+  // 1. Check local cache on disk
+  if (fs.existsSync(avatarPath)) {
+    try {
+      const stats = fs.statSync(avatarPath);
+      if (stats.size > 200) {
+        res.setHeader('Content-Type', 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 days
+        return fs.createReadStream(avatarPath).pipe(res);
+      }
+    } catch (_) {}
+  }
+
+  // 2. Fetch from Telegram Bot API
+  try {
+    const buf = await fetchTelegramUserProfilePhoto(tid);
+    if (buf && buf.length > 200) {
+      try { fs.writeFileSync(avatarPath, buf); } catch (_) {}
+      res.setHeader('Content-Type', 'image/jpeg');
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+      return res.end(buf);
+    }
+  } catch (e) {
+    console.warn(`[Avatar] Failed to fetch photo for ${tid}:`, e.message);
+  }
+
+  // 3. Fallback: Crisp SVG initial avatar
+  let initial = 'U';
+  try {
+    const u = db.getUser(tid);
+    if (u && u.name) initial = u.name.trim().charAt(0).toUpperCase();
+  } catch (_) {}
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+    <defs>
+      <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#7c5cff"/>
+        <stop offset="100%" stop-color="#4f46e5"/>
+      </linearGradient>
+    </defs>
+    <rect width="128" height="128" rx="64" fill="url(#g)"/>
+    <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-weight="700" font-size="52">${initial}</text>
+  </svg>`;
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(svg);
+});
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 app.post('/api/auth/telegram', async (req, res) => {
   try {
@@ -185,18 +239,19 @@ app.post('/api/auth/telegram', async (req, res) => {
     const telegramId = String(data.id);
     await db.syncUserFromCloud(telegramId);
     const name = [data.first_name, data.last_name].filter(Boolean).join(' ') || 'User';
-    const user = db.upsertUser({ telegram_id: telegramId, name, username: data.username || null, photo_url: data.photo_url || null });
+    const photoUrl = data.photo_url || `/api/avatar/${telegramId}`;
+    const user = db.upsertUser({ telegram_id: telegramId, name, username: data.username || null, photo_url: photoUrl });
     if (req.body.ref_code) {
       try {
-        const referrer = db.getUser(req.body.ref_code); // try by referral_code
-        if (!referrer) {
-          // try finding user whose referral_code matches
+        const referrer = db.getUser(req.body.ref_code);
+        if (referrer && String(referrer.telegram_id) !== telegramId) {
+          db.createReferral(referrer.id, user.id);
         }
       } catch (_) {}
     }
     setSessionCookie(res, user);
     const { referral_code, credits, channels_verified, name: uName, username, photo_url, telegram_id, created_at } = user;
-    const userData = { id: user.id, telegram_id, name: uName, username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at };
+    const userData = { id: user.id, telegram_id, name: uName, username, photo_url: photo_url || `/api/avatar/${telegram_id}`, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at };
     res.json({ ok: true, user: userData, ...userData });
   } catch (e) {
     console.error('[Auth]', e.message);
@@ -219,7 +274,7 @@ app.post('/api/auth/quick-connect', async (req, res) => {
       telegram_id: String(telegramId),
       name: name,
       username: req.body.username || null,
-      photo_url: null
+      photo_url: `/api/avatar/${telegramId}`
     });
     if (req.body.ref_code) {
       try {
@@ -231,7 +286,7 @@ app.post('/api/auth/quick-connect', async (req, res) => {
     }
     setSessionCookie(res, user);
     const { referral_code, credits, channels_verified, name: uName, photo_url, telegram_id: tId, created_at } = user;
-    const userData = { id: user.id, telegram_id: tId, name: uName, username: user.username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at };
+    const userData = { id: user.id, telegram_id: tId, name: uName, username: user.username, photo_url: photo_url || `/api/avatar/${telegramId}`, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at };
     res.json({ ok: true, user: userData, ...userData });
   } catch (e) {
     console.error('[Auth Quick]', e.message);
@@ -250,7 +305,7 @@ app.post('/api/auth/token-login', async (req, res) => {
     await db.syncUserFromCloud(telegramId);
     const name = payload.name || 'Telegram User';
     const username = payload.username || null;
-    const user = db.upsertUser({ telegram_id: telegramId, name, username, photo_url: null });
+    const user = db.upsertUser({ telegram_id: telegramId, name, username, photo_url: `/api/avatar/${telegramId}` });
     if (req.body.ref_code) {
       try {
         const referrer = db.getUser(req.body.ref_code) || db.getUserById(req.body.ref_code);
@@ -261,7 +316,7 @@ app.post('/api/auth/token-login', async (req, res) => {
     }
     setSessionCookie(res, user);
     const { id, telegram_id, name: uName, username: uUser, photo_url, credits, channels_verified, referral_code, created_at } = user;
-    const userData = { id, telegram_id, name: uName, username: uUser, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at };
+    const userData = { id, telegram_id, name: uName, username: uUser, photo_url: photo_url || `/api/avatar/${telegramId}`, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at };
     res.json({ ok: true, user: userData, ...userData });
   } catch (e) {
     res.status(500).json({ error: 'Login failed: ' + e.message });
@@ -281,7 +336,7 @@ app.get('/api/auth/me', optionalAuth, async (req, res) => {
         telegram_id: req.userTid,
         name: req.userName || 'User',
         username: req.userUsername || null,
-        photo_url: null
+        photo_url: `/api/avatar/${req.userTid}`
       });
     }
     if (!user) return res.json({ user: null });
@@ -291,7 +346,7 @@ app.get('/api/auth/me', optionalAuth, async (req, res) => {
       return res.json({ user: null });
     }
     const { id, telegram_id, name, username, photo_url, credits, channels_verified, referral_code, created_at } = user;
-    const userData = { id, telegram_id, name, username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at };
+    const userData = { id, telegram_id, name, username, photo_url: photo_url || `/api/avatar/${telegram_id}`, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at };
     res.json({ ok: true, user: userData, ...userData });
   } catch (e) { res.status(500).json({ error: 'Failed' }); }
 });
@@ -581,18 +636,30 @@ app.post('/api/credits/buy', authMiddleware, upload.single('proof'), async (req,
 app.get('/api/credits/orders', authMiddleware, async (req, res) => {
   try {
     await db.initDb();
-    let localOrders = db.getCreditPurchaseOrders(req.userId);
-    if (!localOrders || localOrders.length === 0) {
-      if (req.userTid) {
-        localOrders = db.getCreditPurchaseOrdersByTid(req.userTid);
-      }
-    }
-    // Also merge from cloud store if SQLite empty
+    let localOrders = [];
+    if (req.userId) localOrders = db.getCreditPurchaseOrders(req.userId) || [];
     if ((!localOrders || localOrders.length === 0) && req.userTid) {
-      const cloudOrders = await cloudStore.getUserCreditPurchaseOrders(req.userTid);
-      return res.json({ ok: true, orders: cloudOrders || [] });
+      localOrders = db.getCreditPurchaseOrdersByTid(req.userTid) || [];
     }
-    res.json({ ok: true, orders: localOrders || [] });
+    let cloudOrders = [];
+    if (req.userTid) {
+      cloudOrders = (await cloudStore.getUserCreditPurchaseOrders(req.userTid)) || [];
+    }
+    const map = new Map();
+    localOrders.forEach(o => map.set(o.order_ref, o));
+    cloudOrders.forEach(co => {
+      const existing = map.get(co.order_ref);
+      if (existing) {
+        map.set(co.order_ref, { ...existing, ...co });
+        if (co.status && co.status !== existing.status) {
+          try { db.updateCreditPurchaseOrder(co.order_ref, { status: co.status }); } catch (_) {}
+        }
+      } else {
+        map.set(co.order_ref, co);
+      }
+    });
+    const orders = Array.from(map.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    res.json({ ok: true, orders });
   } catch (e) {
     res.status(500).json({ error: 'Failed to fetch credit orders' });
   }
@@ -686,11 +753,30 @@ app.get('/api/referral', authMiddleware, async (req, res) => {
 app.get('/api/history', authMiddleware, async (req, res) => {
   try {
     await db.initDb();
+    const tid = req.userTid;
+    const uid = req.userId;
+
+    const likes = await db.getLikesHistoryAsync(uid, tid);
+    const credits = await db.getCreditHistoryAsync(uid, tid);
+
+    let creditOrders = [];
+    if (uid) creditOrders = db.getCreditPurchaseOrders(uid) || [];
+    if ((!creditOrders || creditOrders.length === 0) && tid) creditOrders = db.getCreditPurchaseOrdersByTid(tid) || [];
+    if (tid) {
+      const coCloud = (await cloudStore.getUserCreditPurchaseOrders(tid)) || [];
+      const cMap = new Map();
+      creditOrders.forEach(o => cMap.set(o.order_ref, o));
+      coCloud.forEach(o => cMap.set(o.order_ref, { ...(cMap.get(o.order_ref) || {}), ...o }));
+      creditOrders = Array.from(cMap.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    }
+
     res.json({
-      likes: db.getLikesHistory(req.userId),
-      credits: db.getCreditHistory(req.userId),
-      guildGlory: db.getGuildGloryOrders(req.userId),
-      referrals: db.getReferralInfo(req.userId)?.referrals || []
+      ok: true,
+      likes: likes || [],
+      credits: credits || [],
+      creditOrders: creditOrders || [],
+      guildGlory: (uid ? db.getGuildGloryOrders(uid) : []) || [],
+      referrals: (uid ? db.getReferralInfo(uid)?.referrals : []) || []
     });
   } catch (_) { res.status(500).json({ error: 'Failed' }); }
 });

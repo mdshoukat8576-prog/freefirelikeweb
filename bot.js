@@ -156,15 +156,50 @@ async function handleCallback(q){
     const cloudStore = require('./cloudStore');
     try { await db.initDb(); } catch (_) {}
 
-    let order = db.getCreditPurchaseOrderByRef(orderRef) || await cloudStore.getCreditPurchaseOrder(orderRef);
+    let order = db.getCreditPurchaseOrderByRef(orderRef);
+    if (!order) {
+      try { order = await cloudStore.getCreditPurchaseOrder(orderRef); } catch (_) {}
+    }
     if (!order) return answerCallback(q.id, 'Credit order not found: ' + orderRef);
     if (order.status && order.status !== 'pending') return answerCallback(q.id, 'Already ' + order.status);
 
     if (action === 'accept') {
-      db.updateCreditPurchaseOrder(orderRef, { status: 'accepted', updated_at: new Date().toISOString() });
-      await cloudStore.saveCreditPurchaseOrder(orderRef, { ...order, status: 'accepted' });
-      db.updateUserCredits(order.user_id, order.credits, 'purchase', 'Credit purchase approved: ' + orderRef, order.utr);
-      const newBal = await cloudStore.updateCredits(order.telegram_id, order.credits, 'purchase', 'Credit purchase approved: ' + orderRef, order.utr);
+      const creditsToAdd = Number(order.credits) || 0;
+      const tid = String(order.telegram_id || '').trim();
+
+      // 1. Update in Cloud KV first (vital for Vercel multi-instance persistence)
+      try {
+        await cloudStore.saveCreditPurchaseOrder(orderRef, { ...order, status: 'accepted', updated_at: new Date().toISOString() });
+      } catch (err) {
+        console.error('[CloudStore saveCreditPurchaseOrder error]', err.message);
+      }
+
+      let newBal = 0;
+      if (tid) {
+        try {
+          newBal = await cloudStore.updateCredits(tid, creditsToAdd, 'purchase', 'Credit purchase approved: ' + orderRef, order.utr);
+        } catch (err) {
+          console.error('[CloudStore updateCredits error]', err.message);
+        }
+      }
+
+      // 2. Update in SQLite (with fallback by telegram_id if user_id not found)
+      try {
+        db.updateCreditPurchaseOrder(orderRef, { status: 'accepted', updated_at: new Date().toISOString() });
+      } catch (_) {}
+
+      try {
+        let u = (order.user_id ? db.getUserById(order.user_id) : null) || (tid ? db.getUser(tid) : null);
+        if (!u && tid) {
+          u = db.upsertUser({ telegram_id: tid, name: order.name || 'User', username: order.username || null });
+        }
+        if (u) {
+          db.updateUserCredits(u.id, creditsToAdd, 'purchase', 'Credit purchase approved: ' + orderRef, order.utr);
+          newBal = newBal || u.credits;
+        }
+      } catch (err) {
+        console.warn('[DB updateUserCredits fallback]', err.message);
+      }
 
       try {
         await api('editMessageReplyMarkup', {
@@ -181,7 +216,7 @@ async function handleCallback(q){
         const userMsg = [
           '🎉 <b>CREDIT PURCHASE APPROVED!</b>', '',
           `Your payment for <b>+${order.credits} Credits</b> has been verified and added to your balance!`,
-          `💳 <b>New Credits Balance:</b> ${newBal} Credits`,
+          `💳 <b>New Credits Balance:</b> ${newBal || (order.credits)} Credits`,
           `<b>Order Ref:</b> <code>${esc(orderRef)}</code>`, '',
           'You can now use your credits to send Free Fire likes instantly: https://fflike.sbs/free-likes',
           'Thank you for your purchase! 🚀'
@@ -196,8 +231,12 @@ async function handleCallback(q){
     }
 
     if (action === 'reject') {
-      db.updateCreditPurchaseOrder(orderRef, { status: 'rejected', updated_at: new Date().toISOString() });
-      await cloudStore.saveCreditPurchaseOrder(orderRef, { ...order, status: 'rejected' });
+      try {
+        db.updateCreditPurchaseOrder(orderRef, { status: 'rejected', updated_at: new Date().toISOString() });
+      } catch (_) {}
+      try {
+        await cloudStore.saveCreditPurchaseOrder(orderRef, { ...order, status: 'rejected', updated_at: new Date().toISOString() });
+      } catch (_) {}
 
       try {
         await api('editMessageReplyMarkup', {
@@ -471,9 +510,36 @@ module.exports = {
   processTelegramUpdate,
   createPendingAuthToken,
   getPendingAuthToken,
-  consumePendingAuthToken
+  consumePendingAuthToken,
+  fetchTelegramUserProfilePhoto
 };
 start();
+
+async function fetchTelegramUserProfilePhoto(telegramId) {
+  const tid = String(telegramId || '').trim();
+  if (!tid || !/^\d+$/.test(tid)) return null;
+  const tokens = [BOT_TOKEN, NOTIFY_BOT_TOKEN, LOGIN_BOT_TOKEN].filter(Boolean);
+  for (const token of tokens) {
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${token}/getUserProfilePhotos?user_id=${tid}&limit=1`);
+      const d = await r.json();
+      if (d.ok && d.result && d.result.total_count > 0 && d.result.photos?.[0]?.length) {
+        const sizes = d.result.photos[0];
+        const best = sizes[sizes.length - 1];
+        const fr = await fetch(`https://api.telegram.org/bot${token}/getFile?file_id=${best.file_id}`);
+        const fd = await fr.json();
+        if (fd.ok && fd.result?.file_path) {
+          const imgUrl = `https://api.telegram.org/file/bot${token}/${fd.result.file_path}`;
+          const imgRes = await fetch(imgUrl);
+          if (imgRes.ok) {
+            return Buffer.from(await imgRes.arrayBuffer());
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  return null;
+}
 
 async function checkChannelMembership(telegramId, channelUsername) {
   const channel = channelUsername.startsWith('@') ? channelUsername : `@${channelUsername}`;

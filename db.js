@@ -182,6 +182,7 @@ async function syncUserFromCloud(telegramId) {
     if (!cloudUser && !hasClaimed) return getUser(tid);
 
     let local = dbGet('SELECT * FROM users WHERE telegram_id = ?', [tid]);
+    const photoUrl = cloudUser?.photo_url || local?.photo_url || `/api/avatar/${tid}`;
     if (!local) {
       let code = cloudUser?.referral_code || makeReferralCode();
       while (dbGet('SELECT id FROM users WHERE referral_code = ?', [code])) code = makeReferralCode();
@@ -191,7 +192,7 @@ async function syncUserFromCloud(telegramId) {
           tid,
           cloudUser?.name || 'User',
           cloudUser?.username || null,
-          cloudUser?.photo_url || null,
+          photoUrl,
           code,
           cloudUser?.credits !== undefined ? Number(cloudUser.credits) : 0,
           (cloudUser?.channels_verified || hasClaimed) ? 1 : 0,
@@ -205,6 +206,9 @@ async function syncUserFromCloud(telegramId) {
       }
       if ((cloudUser?.channels_verified || hasClaimed) && !local.channels_verified) {
         fieldsToUpdate.channels_verified = 1;
+      }
+      if (!local.photo_url && photoUrl) {
+        fieldsToUpdate.photo_url = photoUrl;
       }
       if (Object.keys(fieldsToUpdate).length > 0) {
         updateUser(tid, fieldsToUpdate);
@@ -229,26 +233,28 @@ function getUserById(id) {
 function createUser({ telegram_id, name, username, photo_url }) {
   let code = makeReferralCode();
   while (dbGet('SELECT id FROM users WHERE referral_code = ?', [code])) code = makeReferralCode();
+  const finalPhoto = photo_url || `/api/avatar/${telegram_id}`;
   dbRun(
     'INSERT INTO users (telegram_id,name,username,photo_url,referral_code,credits) VALUES (?,?,?,?,?,0)',
-    [String(telegram_id), name, username || null, photo_url || null, code]
+    [String(telegram_id), name, username || null, finalPhoto, code]
   );
-  cloudStore.saveUser(telegram_id, { name, username, photo_url, referral_code: code, credits: 0 }).catch(() => {});
+  cloudStore.saveUser(telegram_id, { name, username, photo_url: finalPhoto, referral_code: code, credits: 0 }).catch(() => {});
   return getUser(telegram_id);
 }
 function upsertUser({ telegram_id, name, username, photo_url }) {
   const existing = getUser(telegram_id);
+  const finalPhoto = photo_url || existing?.photo_url || `/api/avatar/${telegram_id}`;
   if (existing) {
     dbRun('UPDATE users SET name=?,username=?,photo_url=? WHERE telegram_id=?',
-      [name, username || null, photo_url || null, String(telegram_id)]);
-    cloudStore.saveUser(telegram_id, { name, username, photo_url }).catch(() => {});
+      [name, username || null, finalPhoto, String(telegram_id)]);
+    cloudStore.saveUser(telegram_id, { name, username, photo_url: finalPhoto }).catch(() => {});
     return getUser(telegram_id);
   }
-  return createUser({ telegram_id, name, username, photo_url });
+  return createUser({ telegram_id, name, username, photo_url: finalPhoto });
 }
 function updateUser(telegramId, fields) {
   const allowed = ['name','username','photo_url','channels_verified','channels_verified_at','initial_reward_claimed'];
-  const keys = Object.keys(fields).filter(k => allowed.includes(k));
+  const keys = Object.keys(fields).filter(k => allowed.includes(k) && fields[k] !== null && fields[k] !== undefined);
   if (!keys.length) return;
   const sets = keys.map(k => `${k}=?`).join(',');
   dbRun(`UPDATE users SET ${sets} WHERE telegram_id=?`, [...keys.map(k => fields[k]), String(telegramId)]);
@@ -263,14 +269,15 @@ function updateUser(telegramId, fields) {
  * delta > 0 = credit, delta < 0 = debit
  */
 function updateUserCredits(userId, delta, type, reason = '', ref = '') {
-  const user = getUserById(userId);
-  if (!user) throw new Error('User not found');
-  const newBalance = (user.credits || 0) + delta;
-  if (newBalance < 0) throw new Error('Insufficient credits');
-  db.run('UPDATE users SET credits=? WHERE id=?', [newBalance, userId]);
-  db.run('INSERT INTO credit_transactions(user_id,type,amount,balance_after,reason,ref) VALUES(?,?,?,?,?,?)',
-    [userId, type, delta, newBalance, reason, ref]);
-  saveDb();
+  let user = getUserById(userId);
+  if (!user) user = getUser(userId);
+  if (!user) throw new Error('User not found: ' + userId);
+  const newBalance = Math.max(0, (user.credits || 0) + delta);
+  dbRun('UPDATE users SET credits=? WHERE id=?', [newBalance, user.id]);
+  try {
+    dbRun('INSERT INTO credit_transactions(user_id,type,amount,balance_after,reason,ref) VALUES(?,?,?,?,?,?)',
+      [user.id, type, delta, newBalance, reason, ref]);
+  } catch (_) {}
   if (user.telegram_id) {
     cloudStore.updateCredits(user.telegram_id, delta, type, reason, ref).catch(() => {});
   }
@@ -278,28 +285,46 @@ function updateUserCredits(userId, delta, type, reason = '', ref = '') {
 }
 
 // ─── Likes ───────────────────────────────────────────────────────────────────
-function getLikesHistory(userId, limit = 30) {
+function getLikesHistory(userId, limit = 50) {
   return dbAll('SELECT * FROM likes_requests WHERE user_id=? ORDER BY created_at DESC LIMIT ?', [userId, limit]);
 }
-async function getLikesHistoryAsync(userId, telegramId, limit = 30) {
-  const rows = dbAll('SELECT * FROM likes_requests WHERE user_id=? ORDER BY created_at DESC LIMIT ?', [userId, limit]);
-  if (rows && rows.length > 0) return rows;
+async function getLikesHistoryAsync(userId, telegramId, limit = 50) {
+  let local = [];
+  try {
+    if (userId) local = dbAll('SELECT * FROM likes_requests WHERE user_id=? ORDER BY created_at DESC LIMIT ?', [userId, limit]) || [];
+  } catch (_) {}
+  let cloud = [];
   if (telegramId) {
     try {
-      const cloudRows = await cloudStore.getLikesHistory(telegramId);
-      if (cloudRows && cloudRows.length > 0) return cloudRows.slice(0, limit);
+      cloud = (await cloudStore.getLikesHistory(telegramId)) || [];
     } catch (_) {}
   }
-  return [];
+  const map = new Map();
+  local.forEach(r => {
+    const k = `${r.uid}_${r.created_at || r.id}`;
+    map.set(k, r);
+  });
+  cloud.forEach(r => {
+    const k = `${r.uid}_${r.created_at || r.time || ''}`;
+    if (!map.has(k)) {
+      map.set(k, {
+        ...r,
+        created_at: r.created_at || r.time || new Date().toISOString()
+      });
+    }
+  });
+  const list = Array.from(map.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  return list.slice(0, limit);
 }
 function createLikesRequest(d) {
+  const now = d.created_at || new Date().toISOString();
   dbRun(
-    'INSERT INTO likes_requests(user_id,uid,region,likes_before,likes_after,likes_given,nickname,level,status,credit_charged) VALUES(?,?,?,?,?,?,?,?,?,?)',
-    [d.user_id, d.uid, d.region, d.likes_before||0, d.likes_after||0, d.likes_given||0, d.nickname||'', d.level||0, d.status||'success', d.credit_charged||0]
+    'INSERT INTO likes_requests(user_id,uid,region,likes_before,likes_after,likes_given,nickname,level,status,credit_charged,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+    [d.user_id, d.uid, d.region, d.likes_before||0, d.likes_after||0, d.likes_given||0, d.nickname||'', d.level||0, d.status||'success', d.credit_charged||0, now]
   );
   const u = getUserById(d.user_id);
   if (u && u.telegram_id) {
-    cloudStore.addLikesHistory(u.telegram_id, d).catch(() => {});
+    cloudStore.addLikesHistory(u.telegram_id, { ...d, created_at: now }).catch(() => {});
   }
   return dbGet('SELECT * FROM likes_requests WHERE user_id=? ORDER BY id DESC LIMIT 1', [d.user_id]);
 }
@@ -307,6 +332,40 @@ function createLikesRequest(d) {
 // ─── Credits ─────────────────────────────────────────────────────────────────
 function getCreditHistory(userId, limit = 50) {
   return dbAll('SELECT * FROM credit_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT ?', [userId, limit]);
+}
+async function getCreditHistoryAsync(userId, telegramId, limit = 50) {
+  let local = [];
+  try {
+    if (userId) local = dbAll('SELECT * FROM credit_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT ?', [userId, limit]) || [];
+  } catch (_) {}
+  let cloud = [];
+  if (telegramId) {
+    try {
+      cloud = (await cloudStore.getVal(`tx_${telegramId}`)) || [];
+    } catch (_) {}
+  }
+  const map = new Map();
+  local.forEach(t => {
+    const k = t.ref ? `${t.type}_${t.ref}` : `${t.type}_${t.amount}_${t.created_at}`;
+    map.set(k, t);
+  });
+  cloud.forEach(t => {
+    const amt = t.delta !== undefined ? t.delta : t.amount;
+    const time = t.time || t.created_at || new Date().toISOString();
+    const k = t.ref ? `${t.type}_${t.ref}` : `${t.type}_${amt}_${time}`;
+    if (!map.has(k)) {
+      map.set(k, {
+        created_at: time,
+        type: t.type || 'credit',
+        amount: amt,
+        balance_after: t.balance_after,
+        reason: t.reason || '',
+        ref: t.ref || ''
+      });
+    }
+  });
+  const list = Array.from(map.values()).sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  return list.slice(0, limit);
 }
 function createCreditOrder(d) {
   dbRun('INSERT INTO credit_orders(user_id,razorpay_order_id,credits,amount_paise,status) VALUES(?,?,?,?,?)',
@@ -430,7 +489,7 @@ module.exports = {
   getUser, getUserById, createUser, upsertUser, updateUser, updateUserCredits,
   syncUserFromCloud,
   getLikesHistory, getLikesHistoryAsync, createLikesRequest,
-  getCreditHistory, createCreditOrder, getCreditOrder, fulfillCreditOrder,
+  getCreditHistory, getCreditHistoryAsync, createCreditOrder, getCreditOrder, fulfillCreditOrder,
   createCreditPurchaseOrder, getCreditPurchaseOrderByRef, getCreditPurchaseOrders, getCreditPurchaseOrdersByTid, updateCreditPurchaseOrder,
   getGuildGloryOrders, getGuildGloryOrderByRef, createGuildGloryOrder, updateGuildGloryOrder,
   getReferralInfo, createReferral, completeReferral,

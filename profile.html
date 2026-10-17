@@ -202,23 +202,60 @@ async function loadCredits() {
     const r = await fetch('/api/history');
     const data = await r.json();
     const items = Array.isArray(data.credits) ? data.credits : [];
+    const orders = Array.isArray(data.creditOrders) ? data.creditOrders : [];
     $('#credits-loading').style.display = 'none';
     const el = $('#credits-content');
     el.style.display = 'block';
-    if (!items.length) {
-      el.innerHTML = emptyState('💎', 'No Credit Transactions', 'When you earn or spend credits, the history will appear here.');
+
+    if (!items.length && !orders.length) {
+      el.innerHTML = emptyState('💎', 'No Credit History', 'When you purchase or spend credits, your complete history will appear here. Go to <a href="/free-likes">Free Likes</a> to get or buy credits.');
       return;
     }
-    el.innerHTML = `<div class="history-table-wrap"><table class="history-table">
-      <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Balance After</th><th>Reason</th></tr></thead>
-      <tbody>${items.map(row => `<tr>
-        <td style="white-space:nowrap">${fmt(row.created_at)}</td>
-        <td>${esc(row.type||'—')}</td>
-        <td class="${row.amount>0?'credit-plus':'credit-minus'}">${row.amount>0?'+':''}${row.amount}</td>
-        <td>${row.balance_after}</td>
-        <td style="color:var(--muted)">${esc(row.reason||'—')}</td>
-      </tr>`).join('')}</tbody>
-    </table></div>`;
+
+    let html = '';
+
+    // 1. Credit Purchase Orders Section
+    if (orders.length > 0) {
+      html += `
+        <h4 style="font-size:13px;color:var(--text);margin:0 0 10px;font-family:'Space Grotesk',sans-serif">💳 Credit Purchase Orders</h4>
+        <div class="history-table-wrap" style="margin-bottom:24px"><table class="history-table">
+          <thead><tr><th>Date</th><th>Ref</th><th>Credits</th><th>Amount</th><th>UTR / TxID</th><th>Status</th></tr></thead>
+          <tbody>${orders.map(o => {
+            const isAccepted = o.status === 'accepted';
+            const isRejected = o.status === 'rejected';
+            const statusClass = isAccepted ? 'completed' : (isRejected ? 'failed' : 'pending');
+            const statusText = isAccepted ? '✓ Approved' : (isRejected ? '✗ Rejected' : '⏳ Pending');
+            return `<tr>
+              <td style="white-space:nowrap">${fmt(o.created_at)}</td>
+              <td><code style="font-size:11px">${esc(o.order_ref)}</code></td>
+              <td><strong style="color:#62e6ae">+${o.credits} Cr</strong></td>
+              <td><strong>${esc(o.amount || '')}</strong></td>
+              <td><span style="font-size:11px;color:var(--muted)">${esc(o.utr || '—')}</span></td>
+              <td><span class="status-pill ${statusClass}">${statusText}</span></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>
+      `;
+    }
+
+    // 2. Credit Transactions Section
+    if (items.length > 0) {
+      html += `
+        <h4 style="font-size:13px;color:var(--text);margin:0 0 10px;font-family:'Space Grotesk',sans-serif">📊 Credit Transactions Log</h4>
+        <div class="history-table-wrap"><table class="history-table">
+          <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Balance After</th><th>Reason</th></tr></thead>
+          <tbody>${items.map(row => `<tr>
+            <td style="white-space:nowrap">${fmt(row.created_at)}</td>
+            <td>${esc(row.type||'—')}</td>
+            <td class="${row.amount>0?'credit-plus':'credit-minus'}">${row.amount>0?'+':''}${row.amount}</td>
+            <td>${row.balance_after}</td>
+            <td style="color:var(--muted)">${esc(row.reason||'—')}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      `;
+    }
+
+    el.innerHTML = html;
   } catch (e) {
     $('#credits-loading').style.display = 'none';
     $('#credits-content').style.display = 'block';
@@ -339,8 +376,13 @@ async function init() {
 
     // Avatar
     const avatarEl = document.getElementById('avatarEl');
-    if (data.photo_url) {
-      avatarEl.outerHTML = `<img class="profile-avatar" id="avatarEl" src="${esc(data.photo_url)}" alt="Avatar" onerror="this.style.display='none'">`;
+    const pfpUrl = data.photo_url || (data.telegram_id ? `/api/avatar/${data.telegram_id}` : null);
+    if (pfpUrl) {
+      avatarEl.outerHTML = `
+        <div style="position:relative;width:72px;height:72px;flex-shrink:0">
+          <img class="profile-avatar" id="avatarEl" src="${esc(pfpUrl)}" alt="Avatar" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+          <div class="profile-avatar-fb" style="display:none;position:absolute;top:0;left:0">${esc((data.name || '?')[0].toUpperCase())}</div>
+        </div>`;
     } else {
       avatarEl.textContent = (data.name || '?')[0].toUpperCase();
     }

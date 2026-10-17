@@ -412,8 +412,15 @@ function startTgConnect() {
   }
 
   function avatarHtml(u, size = 52) {
-    if (u && u.photo_url) return `<img class="tg-avatar" src="${esc(u.photo_url)}" width="${size}" height="${size}" alt="">`;
+    const pfpUrl = u?.photo_url || (u?.telegram_id ? `/api/avatar/${u.telegram_id}` : null);
     const initials = (u?.name || 'U').charAt(0).toUpperCase();
+    if (pfpUrl) {
+      return `
+        <div style="position:relative;width:${size}px;height:${size}px;flex-shrink:0">
+          <img class="tg-avatar" src="${esc(pfpUrl)}" width="${size}" height="${size}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+          <div class="tg-avatar-fb" style="display:none;position:absolute;top:0;left:0;width:${size}px;height:${size}px">${initials}</div>
+        </div>`;
+    }
     return `<div class="tg-avatar-fb" style="width:${size}px;height:${size}px">${initials}</div>`;
   }
 
@@ -719,7 +726,9 @@ function startTgConnect() {
     }
   });
 
-  // Credit Orders List
+  // Credit Orders List & Live Balance Sync
+  let _creditOrderPollTimer = null;
+
   async function loadCreditOrders() {
     const container = $('#creditOrdersList');
     if (!container) return;
@@ -730,7 +739,33 @@ function startTgConnect() {
         container.innerHTML = '<div style="font-size:12px;color:var(--muted)">No credit orders yet.</div>';
         return;
       }
-      container.innerHTML = data.orders.slice(0, 5).map(o => {
+
+      // Check if any order is pending
+      const hasPending = data.orders.some(o => o.status === 'pending');
+      const hasAccepted = data.orders.some(o => o.status === 'accepted');
+
+      // If any accepted order exists, sync fresh user credits balance from server
+      if (hasAccepted && user) {
+        fetch('/api/auth/me').then(res => res.json()).then(meData => {
+          const fresh = meData.user || meData;
+          if (fresh && fresh.credits !== undefined && Number(fresh.credits) !== Number(user.credits)) {
+            user.credits = Number(fresh.credits);
+            if ($('#profileCard3')) $('#profileCard3').innerHTML = profileCardHtml(user);
+          }
+        }).catch(() => {});
+      }
+
+      // Live poll every 5s if user has pending orders
+      if (hasPending && !_creditOrderPollTimer) {
+        _creditOrderPollTimer = setInterval(() => {
+          loadCreditOrders();
+        }, 5000);
+      } else if (!hasPending && _creditOrderPollTimer) {
+        clearInterval(_creditOrderPollTimer);
+        _creditOrderPollTimer = null;
+      }
+
+      container.innerHTML = data.orders.slice(0, 8).map(o => {
         const isAccepted = o.status === 'accepted';
         const isRejected = o.status === 'rejected';
         const statusColor = isAccepted ? '#62e6ae' : (isRejected ? '#ef4444' : '#facc15');
@@ -742,7 +777,7 @@ function startTgConnect() {
           <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);gap:10px">
             <div>
               <div style="font-weight:700;color:#fff;font-size:12px">+${o.credits} Credits <span style="font-size:11px;color:var(--muted);font-weight:normal">(${esc(o.amount || '')})</span></div>
-              <div style="font-size:11px;color:var(--muted)">UTR: ${esc(o.utr || '—')} · ${dateStr}</div>
+              <div style="font-size:11px;color:var(--muted)">Ref: <code>${esc(o.order_ref)}</code> · ${dateStr}</div>
             </div>
             <span style="font-size:11px;font-weight:700;color:${statusColor};background:rgba(255,255,255,0.04);padding:4px 8px;border-radius:6px;white-space:nowrap">${statusLabel}</span>
           </div>
