@@ -204,6 +204,39 @@ app.post('/api/auth/telegram', async (req, res) => {
   }
 });
 
+app.post('/api/auth/quick-connect', async (req, res) => {
+  try {
+    await db.initDb();
+    const raw = String(req.body.username || req.body.telegram || '').trim();
+    if (!raw) return res.status(400).json({ error: 'Please enter your Telegram username or ID' });
+    const clean = raw.replace(/^@/, '');
+    const isNumeric = /^\d{5,15}$/.test(clean);
+    const telegramId = isNumeric ? clean : `user_${clean.toLowerCase()}`;
+    const username = isNumeric ? null : clean;
+    const name = `@${clean}`;
+    const user = db.upsertUser({
+      telegram_id: String(telegramId),
+      name: name,
+      username: username,
+      photo_url: null
+    });
+    if (req.body.ref_code) {
+      try {
+        const referrer = db.getUser(req.body.ref_code) || db.getUserById(req.body.ref_code);
+        if (referrer && String(referrer.telegram_id) !== String(user.telegram_id)) {
+          db.createReferral(referrer.id, user.id);
+        }
+      } catch (_) {}
+    }
+    setSessionCookie(res, user.id);
+    const { referral_code, credits, channels_verified, name: uName, photo_url, telegram_id, created_at } = user;
+    res.json({ ok: true, user: { id: user.id, telegram_id, name: uName, username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at } });
+  } catch (e) {
+    console.error('[Auth Quick]', e.message);
+    res.status(500).json({ error: 'Connection failed: ' + e.message });
+  }
+});
+
 app.get('/api/auth/me', optionalAuth, async (req, res) => {
   if (!req.userId) return res.json({ user: null });
   try {
