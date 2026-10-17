@@ -17,5 +17,11 @@
       "destination": "/terms-of-service",
       "permanent": true
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
+    }
   ]
 }

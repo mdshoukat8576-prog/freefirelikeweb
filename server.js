@@ -224,9 +224,9 @@ function publicConfig() {
   };
 }
 
-app.get('/api/config', (req, res) => res.json(publicConfig()));
+app.get(['/api/config', '/config'], (req, res) => res.json(publicConfig()));
 
-app.post('/api/orders', (req, res) => {
+app.post(['/api/orders', '/orders'], (req, res) => {
   const { plan, uid, server, telegram } = req.body || {};
   const p = PLANS[plan];
   if (!p) return res.status(400).json({ error: 'Invalid plan' });
@@ -259,7 +259,7 @@ app.post('/api/orders', (req, res) => {
   });
 });
 
-app.post('/api/orders/:id/proof', upload.single('proof'), async (req, res) => {
+app.post(['/api/orders/:id/proof', '/orders/:id/proof'], upload.single('proof'), async (req, res) => {
   const orders = readOrders();
   const idx = orders.findIndex(o => o.id === req.params.id);
   if (idx < 0) {
@@ -295,7 +295,7 @@ app.post('/api/orders/:id/proof', upload.single('proof'), async (req, res) => {
   res.json({ ok: true, order: orders[idx] });
 });
 
-app.get('/api/orders/:id', (req, res) => {
+app.get(['/api/orders/:id', '/orders/:id'], (req, res) => {
   const order = readOrders().find(o => o.id === req.params.id);
   if (!order) return res.status(404).json({ error: 'Order not found' });
   res.json({
