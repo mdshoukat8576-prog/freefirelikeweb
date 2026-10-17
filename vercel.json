@@ -17,11 +17,5 @@
       "destination": "/terms-of-service",
       "permanent": true
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/server.js"
-    }
   ]
 }
