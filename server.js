@@ -14,6 +14,7 @@ else if (fs.existsSync(envExPath)) require('dotenv').config({ path: envExPath })
 // Modules (load after env)
 const { notifyAdmin, notifyAdminMessage, notifyGuildGloryOrder, checkChannelMembership, processTelegramUpdate, createPendingAuthToken, getPendingAuthToken, consumePendingAuthToken } = require('./bot');
 const db = require('./db');
+const cloudStore = require('./cloudStore');
 const { authMiddleware, optionalAuth, verifyTelegramLogin, setSessionCookie, clearSessionCookie, verifyLoginToken } = require('./auth');
 
 const app         = express();
@@ -185,6 +186,7 @@ app.post('/api/auth/telegram', async (req, res) => {
     const data = req.body;
     verifyTelegramLogin(data); // throws on invalid/expired
     const telegramId = String(data.id);
+    await db.syncUserFromCloud(telegramId);
     const name = [data.first_name, data.last_name].filter(Boolean).join(' ') || 'User';
     const user = db.upsertUser({ telegram_id: telegramId, name, username: data.username || null, photo_url: data.photo_url || null });
     if (req.body.ref_code) {
@@ -214,6 +216,7 @@ app.post('/api/auth/quick-connect', async (req, res) => {
       return res.status(400).json({ error: 'Telegram ID must be numeric (5-15 digits, e.g. 7932057377). Send /start to @fflike_sbsbot to see your ID.' });
     }
     const telegramId = raw;
+    await db.syncUserFromCloud(telegramId);
     const name = req.body.name || `User ${telegramId.slice(-4)}`;
     const user = db.upsertUser({
       telegram_id: String(telegramId),
@@ -247,6 +250,7 @@ app.post('/api/auth/token-login', async (req, res) => {
     const payload = verifyLoginToken(token);
     if (!payload || !payload.id) return res.status(401).json({ error: 'Login link expired. Send /start to @fflike_sbsbot again.' });
     const telegramId = String(payload.id);
+    await db.syncUserFromCloud(telegramId);
     const name = payload.name || 'Telegram User';
     const username = payload.username || null;
     const user = db.upsertUser({ telegram_id: telegramId, name, username, photo_url: null });
@@ -271,9 +275,12 @@ app.get('/api/auth/me', optionalAuth, async (req, res) => {
   if (!req.userId) return res.json({ user: null });
   try {
     await db.initDb();
+    if (req.userTid) {
+      await db.syncUserFromCloud(req.userTid);
+    }
     let user = db.getUserById(req.userId);
     if (!user && req.userTid) {
-      user = db.upsertUser({
+      user = db.getUser(req.userTid) || db.upsertUser({
         telegram_id: req.userTid,
         name: req.userName || 'User',
         username: req.userUsername || null,
@@ -316,7 +323,7 @@ app.get('/api/auth/poll-connect', async (req, res) => {
     if (!token) return res.status(400).json({ error: 'Missing token' });
     const user = consumePendingAuthToken(token);
     if (user) {
-      setSessionCookie(res, user.id);
+      setSessionCookie(res, user);
       const { id, telegram_id, name, username, photo_url, credits, channels_verified, referral_code, created_at } = user;
       return res.json({ completed: true, ok: true, user: { id, telegram_id, name, username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at } });
     }
@@ -342,9 +349,12 @@ app.post(['/api/telegram-webhook', '/api/bot/webhook'], async (req, res) => {
 app.post('/api/membership/verify', authMiddleware, async (req, res) => {
   try {
     await db.initDb();
+    if (req.userTid) {
+      await db.syncUserFromCloud(req.userTid);
+    }
     let user = db.getUserById(req.userId);
     if (!user && req.userTid) {
-      user = db.upsertUser({ telegram_id: req.userTid, name: req.userName || 'User', username: req.userUsername || null, photo_url: null });
+      user = db.getUser(req.userTid) || db.upsertUser({ telegram_id: req.userTid, name: req.userName || 'User', username: req.userUsername || null, photo_url: null });
     }
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -368,19 +378,26 @@ app.post('/api/membership/verify', authMiddleware, async (req, res) => {
     let creditGranted = false;
 
     if (allVerified) {
-      const fresh = db.getUserById(user.id);
-      if (!fresh.channels_verified) db.updateUser(user.telegram_id, { channels_verified: 1, channels_verified_at: new Date().toISOString() });
-      if (!fresh.initial_reward_claimed) {
+      await db.syncUserFromCloud(user.telegram_id);
+      const fresh = db.getUserById(user.id) || db.getUser(user.telegram_id);
+      if (!fresh.channels_verified) {
+        db.updateUser(user.telegram_id, { channels_verified: 1, channels_verified_at: new Date().toISOString() });
+      }
+      const alreadyClaimed = Boolean(fresh.initial_reward_claimed || (await cloudStore.hasClaimedInitialReward(user.telegram_id)));
+      if (!alreadyClaimed) {
         try {
-          db.updateUserCredits(user.id, 1, 'reward', 'Initial channel verification reward', null);
-          db.updateUser(user.telegram_id, { initial_reward_claimed: 1 });
+          db.updateUserCredits(fresh.id, 1, 'reward', 'Initial channel verification reward', null);
+          db.updateUser(user.telegram_id, { initial_reward_claimed: 1, channels_verified: 1 });
+          await cloudStore.markInitialRewardClaimed(user.telegram_id);
           creditGranted = true;
           // Complete referral if exists
           try {
-            const refRow = db.completeReferral(user.id);
-            if (refRow) db.updateUserCredits(refRow.referrer_id, 1, 'referral', 'Referral reward', String(user.id));
+            const refRow = db.completeReferral(fresh.id);
+            if (refRow) db.updateUserCredits(refRow.referrer_id, 1, 'referral', 'Referral reward', String(fresh.id));
           } catch (_) {}
         } catch (_) {}
+      } else {
+        db.updateUser(user.telegram_id, { initial_reward_claimed: 1, channels_verified: 1 });
       }
     }
 
@@ -477,7 +494,8 @@ app.post('/api/likes/request', authMiddleware, async (req, res) => {
 app.get('/api/likes/history', authMiddleware, async (req, res) => {
   try {
     await db.initDb();
-    res.json({ history: db.getLikesHistory(req.userId) });
+    const history = await db.getLikesHistoryAsync(req.userId, req.userTid);
+    res.json({ history });
   } catch (_) { res.status(500).json({ error: 'Failed' }); }
 });
 
@@ -498,8 +516,55 @@ app.post('/api/credits/order', authMiddleware, async (req, res) => {
     const Razorpay = require('razorpay');
     const rzp = new Razorpay({ key_id: RZP_KEY_ID, key_secret: RZP_KEY_SECRET });
     const rzpOrder = await rzp.orders.create({ amount: amountPaise, currency: 'INR', receipt: `cr_${req.userId}_${Date.now()}` });
+    
+    let paymentLinkUrl = null;
+    let paymentLinkId = null;
+    try {
+      const plink = await rzp.paymentLink.create({
+        amount: amountPaise,
+        currency: 'INR',
+        accept_partial: false,
+        description: `${credits} FFLike Credits`,
+        notes: {
+          user_id: String(req.userId),
+          telegram_id: String(req.userTid || ''),
+          order_id: rzpOrder.id,
+          credits: String(credits)
+        },
+        notify: { sms: false, email: false },
+        reminder_enable: false,
+        callback_url: `${req.protocol}://${req.get('host')}/free-likes.html?payment=done&order_id=${rzpOrder.id}`,
+        callback_method: 'get'
+      });
+      if (plink && plink.short_url) {
+        paymentLinkUrl = plink.short_url;
+        paymentLinkId = plink.id;
+      }
+    } catch (plErr) {
+      console.warn('[Credits Order] Payment link note:', plErr.message);
+    }
+
     db.createCreditOrder({ user_id: req.userId, razorpay_order_id: rzpOrder.id, credits, amount_paise: amountPaise });
-    res.json({ ok: true, orderId: rzpOrder.id, amount: amountPaise, currency: 'INR', credits, keyId: RZP_KEY_ID });
+    await cloudStore.saveCreditOrder(rzpOrder.id, {
+      user_id: req.userId,
+      telegram_id: req.userTid,
+      order_id: rzpOrder.id,
+      payment_link_id: paymentLinkId,
+      credits,
+      amount_paise: amountPaise,
+      status: 'created'
+    });
+
+    res.json({
+      ok: true,
+      orderId: rzpOrder.id,
+      paymentLinkId,
+      paymentLinkUrl,
+      amount: amountPaise,
+      currency: 'INR',
+      credits,
+      keyId: RZP_KEY_ID
+    });
   } catch (e) {
     console.error('[Credits]', e.message);
     res.status(500).json({ error: 'Failed to create payment order: ' + e.message });
@@ -517,19 +582,22 @@ app.post('/api/credits/verify', authMiddleware, async (req, res) => {
     const expected = crypto.createHmac('sha256', secret).update(`${razorpay_order_id}|${razorpay_payment_id}`).digest('hex');
     if (expected !== razorpay_signature) return res.status(400).json({ error: 'Invalid signature' });
 
-    const order = db.getCreditOrder(razorpay_order_id);
+    let order = db.getCreditOrder(razorpay_order_id) || await cloudStore.getCreditOrder(razorpay_order_id);
     if (!order) return res.status(404).json({ error: 'Order not found' });
-    if (order.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
+    if (order.user_id && order.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
     if (order.fulfilled) return res.json({ ok: true, credits: db.getUserById(req.userId).credits, already: true });
 
     db.fulfillCreditOrder(razorpay_order_id, razorpay_payment_id);
     const newBal = db.updateUserCredits(req.userId, order.credits, 'purchase', 'Razorpay credit purchase', razorpay_payment_id);
+    let u = db.getUserById(req.userId);
+    if (u && u.telegram_id) {
+      await cloudStore.updateCredits(u.telegram_id, order.credits, 'purchase', 'Razorpay credit purchase', razorpay_payment_id);
+    }
 
     // Notify Telegram Admin
     try {
-      const u = db.getUserById(req.userId);
       const text = [
-        '💳 <b>NEW CREDIT PURCHASE (RAZORPAY)</b>', '',
+        '💳 <b>NEW CREDIT PURCHASE (RAZORPAY MODAL)</b>', '',
         `<b>User:</b> ${esc(u?.name || 'User')} ${u?.username ? '(@' + esc(u.username) + ')' : ''}`,
         `<b>Telegram ID:</b> <code>${esc(u?.telegram_id || 'N/A')}</code>`,
         `<b>Credits Added:</b> +${order.credits}`,
@@ -546,6 +614,144 @@ app.post('/api/credits/verify', authMiddleware, async (req, res) => {
   } catch (e) {
     console.error('[Credits verify]', e.message);
     res.status(500).json({ error: 'Verification failed: ' + e.message });
+  }
+});
+
+app.post('/api/credits/verify-link', authMiddleware, async (req, res) => {
+  try {
+    await db.initDb();
+    const { paymentLinkId, orderId } = req.body || {};
+    if (!orderId && !paymentLinkId) return res.status(400).json({ error: 'Order ID or Payment Link ID required' });
+
+    const Razorpay = require('razorpay');
+    const rzp = new Razorpay({ key_id: RZP_KEY_ID, key_secret: RZP_KEY_SECRET });
+
+    let isPaid = false;
+    let paymentId = '';
+    let credits = 0;
+    let order = orderId ? (db.getCreditOrder(orderId) || await cloudStore.getCreditOrder(orderId)) : null;
+
+    if (order && order.fulfilled) {
+      let u = db.getUserById(req.userId);
+      if (!u && req.userTid) u = await db.syncUserFromCloud(req.userTid);
+      return res.json({ ok: true, credits: u?.credits || 0, already: true });
+    }
+
+    // 1. Check order payments in Razorpay
+    if (orderId) {
+      try {
+        const orderPayments = await rzp.orders.fetchPayments(orderId);
+        const captured = (orderPayments.items || []).find(p => p.status === 'captured');
+        if (captured) {
+          isPaid = true;
+          paymentId = captured.id;
+          credits = order ? order.credits : Math.round(captured.amount / 500);
+        }
+      } catch (e) {
+        console.warn('[Verify Link] orderPayments check note:', e.message);
+      }
+    }
+
+    // 2. Check payment link status in Razorpay
+    if (!isPaid && paymentLinkId) {
+      try {
+        const plink = await rzp.paymentLink.fetch(paymentLinkId);
+        if (plink && (plink.status === 'paid' || plink.amount_paid >= plink.amount)) {
+          isPaid = true;
+          paymentId = plink.payments?.[0]?.payment_id || `plink_${paymentLinkId}`;
+          credits = parseInt(plink.notes?.credits, 10) || (order ? order.credits : Math.round(plink.amount / 500));
+        }
+      } catch (e) {
+        console.warn('[Verify Link] paymentLink check note:', e.message);
+      }
+    }
+
+    if (isPaid) {
+      let user = db.getUserById(req.userId);
+      if (!user && req.userTid) user = await db.syncUserFromCloud(req.userTid);
+      if (orderId) db.fulfillCreditOrder(orderId, paymentId);
+      const newBal = db.updateUserCredits(req.userId, credits, 'purchase', 'Razorpay verified', paymentId);
+      if (user && user.telegram_id) {
+        await cloudStore.updateCredits(user.telegram_id, credits, 'purchase', 'Razorpay verified', paymentId);
+      }
+
+      // Notify Telegram Admin
+      try {
+        const text = [
+          '💳 <b>NEW CREDIT PURCHASE (RAZORPAY LINK / DIRECT)</b>', '',
+          `<b>User:</b> ${esc(user?.name || 'User')} ${user?.username ? '(@' + esc(user.username) + ')' : ''}`,
+          `<b>Telegram ID:</b> <code>${esc(user?.telegram_id || 'N/A')}</code>`,
+          `<b>Credits Added:</b> +${credits}`,
+          `<b>New Balance:</b> ${newBal} credits`,
+          `<b>Payment ID:</b> <code>${esc(paymentId)}</code>`,
+          `<b>Order ID:</b> <code>${esc(orderId || paymentLinkId)}</code>`,
+          `<b>Time:</b> ${esc(new Date().toLocaleString('en-IN'))}`
+        ].join('\n');
+        notifyAdminMessage(text);
+      } catch (_) {}
+
+      return res.json({ ok: true, credits: newBal, message: `${credits} credits added successfully!` });
+    }
+
+    res.json({ ok: false, message: 'Payment not detected yet. If you completed payment, wait a few seconds and try again.' });
+  } catch (e) {
+    console.error('[Credits verify-link]', e.message);
+    res.status(500).json({ error: 'Verification failed: ' + e.message });
+  }
+});
+
+app.get('/api/credits/check-status', authMiddleware, async (req, res) => {
+  try {
+    const { orderId, paymentLinkId } = req.query || {};
+    if (!orderId && !paymentLinkId) return res.status(400).json({ error: 'Missing ID' });
+    const Razorpay = require('razorpay');
+    const rzp = new Razorpay({ key_id: RZP_KEY_ID, key_secret: RZP_KEY_SECRET });
+    
+    let isPaid = false;
+    let paymentId = '';
+    let credits = 0;
+    let order = orderId ? db.getCreditOrder(orderId) : null;
+    if (order && order.fulfilled) {
+      const u = db.getUserById(req.userId);
+      return res.json({ isPaid: true, credits: u?.credits || 0 });
+    }
+
+    if (orderId) {
+      try {
+        const orderPayments = await rzp.orders.fetchPayments(orderId);
+        const captured = (orderPayments.items || []).find(p => p.status === 'captured');
+        if (captured) {
+          isPaid = true;
+          paymentId = captured.id;
+          credits = order ? order.credits : Math.round(captured.amount / 500);
+        }
+      } catch (_) {}
+    }
+
+    if (!isPaid && paymentLinkId) {
+      try {
+        const plink = await rzp.paymentLink.fetch(paymentLinkId);
+        if (plink && (plink.status === 'paid' || plink.amount_paid >= plink.amount)) {
+          isPaid = true;
+          paymentId = plink.payments?.[0]?.payment_id || `plink_${paymentLinkId}`;
+          credits = parseInt(plink.notes?.credits, 10) || (order ? order.credits : Math.round(plink.amount / 500));
+        }
+      } catch (_) {}
+    }
+
+    if (isPaid) {
+      if (orderId) db.fulfillCreditOrder(orderId, paymentId);
+      const newBal = db.updateUserCredits(req.userId, credits, 'purchase', 'Razorpay auto-poll', paymentId);
+      const user = db.getUserById(req.userId);
+      if (user && user.telegram_id) {
+        await cloudStore.updateCredits(user.telegram_id, credits, 'purchase', 'Razorpay auto-poll', paymentId);
+      }
+      return res.json({ isPaid: true, credits: newBal });
+    }
+
+    res.json({ isPaid: false });
+  } catch (e) {
+    res.json({ isPaid: false });
   }
 });
 

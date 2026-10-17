@@ -5,6 +5,7 @@
 const path   = require('path');
 const fs     = require('fs');
 const crypto = require('crypto');
+const cloudStore = require('./cloudStore');
 
 const isVercel = Boolean(process.env.VERCEL);
 const dataDir  = isVercel ? '/tmp/data' : path.join(__dirname, 'data');
@@ -31,6 +32,12 @@ async function initDb() {
         SQL = await initSqlJs({ locateFile: () => wasmPath });
       } else {
         SQL = await initSqlJs();
+      }
+      if (isVercel && !fs.existsSync(DB_FILE)) {
+        const seed = path.join(__dirname, 'data', 'fflike.db');
+        if (fs.existsSync(seed)) {
+          try { fs.copyFileSync(seed, DB_FILE); } catch (_) {}
+        }
       }
       if (fs.existsSync(DB_FILE)) {
         const buf = fs.readFileSync(DB_FILE);
@@ -149,6 +156,53 @@ function makeReferralCode() {
 }
 
 // ─── User helpers ────────────────────────────────────────────────────────────
+async function syncUserFromCloud(telegramId) {
+  const tid = String(telegramId || '').trim();
+  if (!tid) return null;
+  try {
+    const cloudUser = await cloudStore.getUser(tid);
+    const hasClaimed = await cloudStore.hasClaimedInitialReward(tid);
+    if (!cloudUser && !hasClaimed) return getUser(tid);
+
+    let local = dbGet('SELECT * FROM users WHERE telegram_id = ?', [tid]);
+    if (!local) {
+      let code = cloudUser?.referral_code || makeReferralCode();
+      while (dbGet('SELECT id FROM users WHERE referral_code = ?', [code])) code = makeReferralCode();
+      dbRun(
+        'INSERT INTO users (telegram_id,name,username,photo_url,referral_code,credits,channels_verified,initial_reward_claimed) VALUES (?,?,?,?,?,?,?,?)',
+        [
+          tid,
+          cloudUser?.name || 'User',
+          cloudUser?.username || null,
+          cloudUser?.photo_url || null,
+          code,
+          cloudUser?.credits !== undefined ? Number(cloudUser.credits) : 0,
+          (cloudUser?.channels_verified || hasClaimed) ? 1 : 0,
+          hasClaimed ? 1 : 0
+        ]
+      );
+    } else {
+      const fieldsToUpdate = {};
+      if (hasClaimed && !local.initial_reward_claimed) {
+        fieldsToUpdate.initial_reward_claimed = 1;
+      }
+      if ((cloudUser?.channels_verified || hasClaimed) && !local.channels_verified) {
+        fieldsToUpdate.channels_verified = 1;
+      }
+      if (Object.keys(fieldsToUpdate).length > 0) {
+        updateUser(tid, fieldsToUpdate);
+      }
+      if (cloudUser?.credits !== undefined && Number(cloudUser.credits) !== Number(local.credits)) {
+        dbRun('UPDATE users SET credits=? WHERE telegram_id=?', [Number(cloudUser.credits), tid]);
+      }
+    }
+    return dbGet('SELECT * FROM users WHERE telegram_id = ?', [tid]);
+  } catch (err) {
+    console.warn('[DB] syncUserFromCloud error:', err.message);
+    return getUser(tid);
+  }
+}
+
 function getUser(telegramId) {
   return dbGet('SELECT * FROM users WHERE telegram_id = ?', [String(telegramId)]);
 }
@@ -162,6 +216,7 @@ function createUser({ telegram_id, name, username, photo_url }) {
     'INSERT INTO users (telegram_id,name,username,photo_url,referral_code,credits) VALUES (?,?,?,?,?,0)',
     [String(telegram_id), name, username || null, photo_url || null, code]
   );
+  cloudStore.saveUser(telegram_id, { name, username, photo_url, referral_code: code, credits: 0 }).catch(() => {});
   return getUser(telegram_id);
 }
 function upsertUser({ telegram_id, name, username, photo_url }) {
@@ -169,6 +224,7 @@ function upsertUser({ telegram_id, name, username, photo_url }) {
   if (existing) {
     dbRun('UPDATE users SET name=?,username=?,photo_url=? WHERE telegram_id=?',
       [name, username || null, photo_url || null, String(telegram_id)]);
+    cloudStore.saveUser(telegram_id, { name, username, photo_url }).catch(() => {});
     return getUser(telegram_id);
   }
   return createUser({ telegram_id, name, username, photo_url });
@@ -179,6 +235,10 @@ function updateUser(telegramId, fields) {
   if (!keys.length) return;
   const sets = keys.map(k => `${k}=?`).join(',');
   dbRun(`UPDATE users SET ${sets} WHERE telegram_id=?`, [...keys.map(k => fields[k]), String(telegramId)]);
+  cloudStore.saveUser(telegramId, fields).catch(() => {});
+  if (fields.initial_reward_claimed) {
+    cloudStore.markInitialRewardClaimed(telegramId).catch(() => {});
+  }
 }
 
 /**
@@ -194,6 +254,9 @@ function updateUserCredits(userId, delta, type, reason = '', ref = '') {
   db.run('INSERT INTO credit_transactions(user_id,type,amount,balance_after,reason,ref) VALUES(?,?,?,?,?,?)',
     [userId, type, delta, newBalance, reason, ref]);
   saveDb();
+  if (user.telegram_id) {
+    cloudStore.updateCredits(user.telegram_id, delta, type, reason, ref).catch(() => {});
+  }
   return newBalance;
 }
 
@@ -201,11 +264,26 @@ function updateUserCredits(userId, delta, type, reason = '', ref = '') {
 function getLikesHistory(userId, limit = 30) {
   return dbAll('SELECT * FROM likes_requests WHERE user_id=? ORDER BY created_at DESC LIMIT ?', [userId, limit]);
 }
+async function getLikesHistoryAsync(userId, telegramId, limit = 30) {
+  const rows = dbAll('SELECT * FROM likes_requests WHERE user_id=? ORDER BY created_at DESC LIMIT ?', [userId, limit]);
+  if (rows && rows.length > 0) return rows;
+  if (telegramId) {
+    try {
+      const cloudRows = await cloudStore.getLikesHistory(telegramId);
+      if (cloudRows && cloudRows.length > 0) return cloudRows.slice(0, limit);
+    } catch (_) {}
+  }
+  return [];
+}
 function createLikesRequest(d) {
   dbRun(
     'INSERT INTO likes_requests(user_id,uid,region,likes_before,likes_after,likes_given,nickname,level,status,credit_charged) VALUES(?,?,?,?,?,?,?,?,?,?)',
     [d.user_id, d.uid, d.region, d.likes_before||0, d.likes_after||0, d.likes_given||0, d.nickname||'', d.level||0, d.status||'success', d.credit_charged||0]
   );
+  const u = getUserById(d.user_id);
+  if (u && u.telegram_id) {
+    cloudStore.addLikesHistory(u.telegram_id, d).catch(() => {});
+  }
   return dbGet('SELECT * FROM likes_requests WHERE user_id=? ORDER BY id DESC LIMIT 1', [d.user_id]);
 }
 
@@ -216,6 +294,7 @@ function getCreditHistory(userId, limit = 50) {
 function createCreditOrder(d) {
   dbRun('INSERT INTO credit_orders(user_id,razorpay_order_id,credits,amount_paise,status) VALUES(?,?,?,?,?)',
     [d.user_id, d.razorpay_order_id, d.credits, d.amount_paise, 'created']);
+  cloudStore.saveCreditOrder(d.razorpay_order_id, d).catch(() => {});
   return dbGet('SELECT * FROM credit_orders WHERE razorpay_order_id=?', [d.razorpay_order_id]);
 }
 function getCreditOrder(rpOrderId) {
@@ -226,6 +305,7 @@ function fulfillCreditOrder(rpOrderId, paymentId) {
   if (!order || order.fulfilled) return null;
   dbRun('UPDATE credit_orders SET status=?,fulfilled=1,razorpay_payment_id=? WHERE razorpay_order_id=?',
     ['paid', paymentId, rpOrderId]);
+  cloudStore.saveCreditOrder(rpOrderId, { status: 'paid', fulfilled: 1, razorpay_payment_id: paymentId }).catch(() => {});
   return getCreditOrder(rpOrderId);
 }
 
@@ -287,7 +367,8 @@ function markWebhookProcessed(eventId) {
 module.exports = {
   initDb,
   getUser, getUserById, createUser, upsertUser, updateUser, updateUserCredits,
-  getLikesHistory, createLikesRequest,
+  syncUserFromCloud,
+  getLikesHistory, getLikesHistoryAsync, createLikesRequest,
   getCreditHistory, createCreditOrder, getCreditOrder, fulfillCreditOrder,
   getGuildGloryOrders, getGuildGloryOrderByRef, createGuildGloryOrder, updateGuildGloryOrder,
   getReferralInfo, createReferral, completeReferral,

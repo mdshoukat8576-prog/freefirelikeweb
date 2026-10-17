@@ -127,6 +127,7 @@ function setSessionCookie(res, userId) {
 }
 
 function clearSessionCookie(res) {
+  res.clearCookie(COOKIE_NAME, COOKIE_OPTS);
   res.clearCookie(COOKIE_NAME);
 }
 

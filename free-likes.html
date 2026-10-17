@@ -491,37 +491,136 @@ function startTgConnect() {
     $('#creditPriceLine').textContent = `Total: ₹${qty * 5}`;
   });
 
+  let pollInterval = null;
+
   $('#buyCreditsBtn')?.addEventListener('click', async () => {
     const credits = parseInt($('#creditsQty')?.value, 10);
     const resultEl = $('#buyCreditsResult');
+    const buyBtn = $('#buyCreditsBtn');
     if (!credits || credits < 1) { resultEl.innerHTML = '<div class="err-box" style="margin-top:8px">Enter valid quantity</div>'; return; }
+    
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+
+    buyBtn.disabled = true;
+    buyBtn.innerHTML = 'Creating Order… <span class="spinner"></span>';
+    resultEl.innerHTML = '';
+
     try {
       const r = await fetch('/api/credits/order', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ credits })
       });
       const data = await r.json();
+      buyBtn.disabled = false;
+      buyBtn.innerHTML = 'Pay with Razorpay <span>↗</span>';
+
       if (data.setup || data.error) {
         resultEl.innerHTML = `<div class="err-box" style="margin-top:8px">${data.error || 'Payment not configured. Contact admin.'}</div>`;
         return;
       }
+
       if (data.ok && data.orderId) {
-        const options = {
-          key: data.keyId, amount: data.amount, currency: 'INR',
-          name: 'FFLike Credits', description: `${credits} credits`, order_id: data.orderId,
-          handler: async function(resp) {
-            const vr = await fetch('/api/credits/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(resp) });
+        const orderId = data.orderId;
+        const plinkId = data.paymentLinkId;
+        const plinkUrl = data.paymentLinkUrl;
+        const totalInr = data.amount / 100;
+
+        function markPaid(newBal) {
+          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+          user.credits = newBal;
+          $('#profileCard3').innerHTML = profileCardHtml(user);
+          resultEl.innerHTML = `<div style="background:rgba(98,230,174,0.12);border:1px solid #62e6ae;color:#62e6ae;padding:12px;border-radius:8px;font-size:13px;font-weight:700;margin-top:10px">🎉 Payment Successful! ${credits} Credits Added! New Balance: ${newBal}</div>`;
+        }
+
+        resultEl.innerHTML = `
+          <div style="background:rgba(124,92,255,0.08);border:1px solid rgba(124,92,255,0.3);border-radius:10px;padding:14px;margin-top:12px">
+            <div style="font-weight:700;font-size:14px;color:#fff;margin-bottom:6px">Complete ₹${totalInr} Payment for ${credits} Credits</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Scan QR with any UPI app (GPay, PhonePe, Paytm, BHIM) or open link:</div>
+            
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              ${plinkUrl ? `
+              <a href="${plinkUrl}" target="_blank" rel="noopener noreferrer" class="btn" style="flex:1;min-width:180px;text-align:center;text-decoration:none;padding:10px 14px;font-size:13px;background:linear-gradient(135deg,#00c853,#00e676);color:#052e16;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px">
+                ⚡ Open Razorpay UPI Link ↗
+              </a>` : ''}
+              <button type="button" id="retryModalBtn" class="btn" style="flex:1;min-width:130px;padding:10px 14px;font-size:13px;background:#2a2f42;color:#fff;border-radius:8px;cursor:pointer">
+                📱 Open In-Page Popup
+              </button>
+            </div>
+            
+            <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+              <button type="button" id="checkPayStatusBtn" class="btn" style="background:#1e2433;border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:12px;padding:7px 14px;border-radius:6px;cursor:pointer">
+                🔄 Check Payment Status
+              </button>
+              <span id="pollStatusMsg" style="font-size:11px;color:var(--muted)">⏳ Auto-verifying payment...</span>
+            </div>
+          </div>
+        `;
+
+        function openModal() {
+          const options = {
+            key: data.keyId, amount: data.amount, currency: 'INR',
+            name: 'FFLike Credits', description: `${credits} credits`, order_id: orderId,
+            handler: async function(resp) {
+              try {
+                const vr = await fetch('/api/credits/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(resp) });
+                const vd = await vr.json();
+                if (vd.ok) markPaid(vd.credits);
+                else resultEl.innerHTML = `<div class="err-box" style="margin-top:8px">${vd.error}</div>`;
+              } catch (_) {}
+            },
+            prefill: user ? { name: user.name, contact: '' } : {},
+            theme: { color: '#7c5cff' }
+          };
+          if (window.Razorpay) { new window.Razorpay(options).open(); }
+          else { const s = document.createElement('script'); s.src='https://checkout.razorpay.com/v1/checkout.js'; s.onload = () => new window.Razorpay(options).open(); document.head.appendChild(s); }
+        }
+
+        $('#retryModalBtn')?.addEventListener('click', openModal);
+
+        $('#checkPayStatusBtn')?.addEventListener('click', async () => {
+          const btn = $('#checkPayStatusBtn');
+          btn.textContent = 'Checking…';
+          try {
+            const vr = await fetch('/api/credits/verify-link', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderId, paymentLinkId: plinkId })
+            });
             const vd = await vr.json();
-            if (vd.ok) { user.credits = vd.credits; $('#profileCard3').innerHTML = profileCardHtml(user); resultEl.innerHTML = `<div style="color:#62e6ae;margin-top:8px;font-size:13px">✅ ${credits} credits added! Balance: ${vd.credits}</div>`; }
-            else resultEl.innerHTML = `<div class="err-box" style="margin-top:8px">${vd.error}</div>`;
-          },
-          prefill: user ? { name: user.name, contact: '' } : {},
-          theme: { color: '#7c5cff' }
-        };
-        if (window.Razorpay) { new window.Razorpay(options).open(); }
-        else { const s = document.createElement('script'); s.src='https://checkout.razorpay.com/v1/checkout.js'; s.onload = () => new window.Razorpay(options).open(); document.head.appendChild(s); }
+            if (vd.ok) markPaid(vd.credits);
+            else {
+              btn.textContent = '🔄 Check Payment Status';
+              const msg = $('#pollStatusMsg');
+              if (msg) msg.textContent = '⚠️ ' + (vd.message || 'Payment not detected yet. Try again after paying.');
+            }
+          } catch (_) {
+            btn.textContent = '🔄 Check Payment Status';
+          }
+        });
+
+        // Start auto-poll every 4s for up to 2.5 minutes
+        let pollCount = 0;
+        pollInterval = setInterval(async () => {
+          pollCount++;
+          if (pollCount > 38) { clearInterval(pollInterval); pollInterval = null; return; }
+          try {
+            const q = `?orderId=${encodeURIComponent(orderId)}${plinkId ? '&paymentLinkId=' + encodeURIComponent(plinkId) : ''}`;
+            const cr = await fetch(`/api/credits/check-status${q}`);
+            const cd = await cr.json();
+            if (cd.isPaid) {
+              markPaid(cd.credits);
+            }
+          } catch (_) {}
+        }, 4000);
+
+        // Also trigger modal immediately
+        openModal();
       }
-    } catch (_) { resultEl.innerHTML = '<div class="err-box" style="margin-top:8px">Payment failed. Try again.</div>'; }
+    } catch (_) {
+      buyBtn.disabled = false;
+      buyBtn.innerHTML = 'Pay with Razorpay <span>↗</span>';
+      resultEl.innerHTML = '<div class="err-box" style="margin-top:8px">Payment creation failed. Try again.</div>';
+    }
   });
 
   async function loadReferral() {
@@ -611,6 +710,33 @@ function startTgConnect() {
       } catch (_) {}
     }
     renderState();
+
+    // 3. Check for return from payment link (?payment=done)
+    const orderId = urlParams.get('order_id');
+    const plink = urlParams.get('plink');
+    const paymentDone = urlParams.get('payment');
+    if (paymentDone && (orderId || plink)) {
+      try {
+        const vr = await fetch('/api/credits/verify-link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId, paymentLinkId: plink })
+        });
+        const vd = await vr.json();
+        if (vd.ok) {
+          const cleanUrl = location.pathname + (urlParams.get('ref') ? `?ref=${urlParams.get('ref')}` : '');
+          window.history.replaceState({}, '', cleanUrl);
+          if (user) {
+            user.credits = vd.credits;
+            renderState();
+          }
+          setTimeout(() => {
+            const resEl = $('#buyCreditsResult');
+            if (resEl) resEl.innerHTML = `<div style="background:rgba(98,230,174,0.12);border:1px solid #62e6ae;color:#62e6ae;padding:12px;border-radius:8px;font-size:13px;font-weight:700;margin-top:10px">🎉 Payment Successful! Balance: ${vd.credits} credits!</div>`;
+          }, 600);
+        }
+      } catch (_) {}
+    }
   }
 
   init();
