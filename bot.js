@@ -325,6 +325,7 @@ async function start(){
 
 module.exports = {
   notifyAdmin,
+  notifyAdminMessage,
   notifyGuildGloryOrder,
   checkChannelMembership,
   processTelegramUpdate,
@@ -411,5 +412,14 @@ async function notifyGuildGloryOrder(order) {
     await api('sendMessage', { chat_id: ADMIN_CHAT_ID, text, parse_mode: 'HTML' });
   } catch (e) {
     console.error('[Telegram] notifyGuildGloryOrder error:', e.message);
+  }
+}
+
+async function notifyAdminMessage(text) {
+  if (!BOT_TOKEN || !ADMIN_CHAT_ID) return;
+  try {
+    await api('sendMessage', { chat_id: ADMIN_CHAT_ID, text, parse_mode: 'HTML' });
+  } catch (e) {
+    console.error('[Telegram] notifyAdminMessage error:', e.message);
   }
 }

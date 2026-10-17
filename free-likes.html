@@ -464,21 +464,19 @@ function startTgConnect() {
       else {
         user.credits = data.credits;
         $('#profileCard3').innerHTML = profileCardHtml(user);
-        if (data.likesGiven > 0) {
-          resultEl.innerHTML = `<div class="likes-result">
-            <div class="likes-given-num">${data.likesGiven}</div>
-            <div class="likes-given-label">Likes Sent 🎉</div>
-            <div class="result-row"><span>Player</span><strong>${esc(data.nickname)}</strong></div>
-            <div class="result-row"><span>UID</span><strong>${esc(data.uid)}</strong></div>
-            <div class="result-row"><span>Region</span><strong>${esc(data.region)}</strong></div>
-            <div class="result-row"><span>Level</span><strong>${data.level}</strong></div>
-            <div class="result-row"><span>Likes Before</span><strong>${Number(data.likesBefore).toLocaleString()}</strong></div>
-            <div class="result-row"><span>Likes After</span><strong>${Number(data.likesAfter).toLocaleString()}</strong></div>
-            <div class="result-row"><span>Credits Left</span><strong style="color:#62e6ae">${data.credits}</strong></div>
-          </div>`;
-        } else {
-          resultEl.innerHTML = `<div class="err-box" style="color:var(--muted);border-color:var(--line)">⚠️ ${esc(data.message)}</div>`;
-        }
+        const isOk = (data.likesGiven > 0) || (data.status === 'success');
+        resultEl.innerHTML = `<div class="likes-result">
+          <div class="likes-given-num" style="${isOk ? 'color:#62e6ae' : 'color:#facc15'}">${isOk ? '+' + data.likesGiven : '0'}</div>
+          <div class="likes-given-label" style="${isOk ? 'color:#62e6ae' : 'color:#facc15'}">${isOk ? 'Likes Sent Successfully 🎉' : 'No Likes Sent · Credit Refunded ↺'}</div>
+          <div class="result-row"><span>Status</span><strong style="${isOk ? 'color:#62e6ae' : 'color:#facc15'}">${isOk ? '✓ Completed' : '⚠️ ' + esc(data.message || 'Failed / Refunded')}</strong></div>
+          <div class="result-row"><span>Player</span><strong>${esc(data.nickname || 'Unknown')}</strong></div>
+          <div class="result-row"><span>UID</span><strong>${esc(data.uid)}</strong></div>
+          <div class="result-row"><span>Region</span><strong>${esc(data.region)}</strong></div>
+          <div class="result-row"><span>Level</span><strong>${data.level || 0}</strong></div>
+          <div class="result-row"><span>Likes Before</span><strong>${Number(data.likesBefore || 0).toLocaleString()}</strong></div>
+          <div class="result-row"><span>Likes After</span><strong>${Number(data.likesAfter || 0).toLocaleString()}</strong></div>
+          <div class="result-row"><span>Credits Balance</span><strong style="color:#62e6ae">${data.credits}</strong></div>
+        </div>`;
         loadHistory();
       }
     } catch (_) { errEl.textContent = 'Network error. Please try again.'; errEl.style.display='block'; }
@@ -550,11 +548,25 @@ function startTgConnect() {
       if (!list || !box) return;
       if (!data.history || !data.history.length) { box.style.display = 'none'; return; }
       box.style.display = 'block';
-      list.innerHTML = data.history.slice(0,5).map(h => `
-        <div class="history-row">
-          <div><div class="h-uid">${esc(h.uid)}</div><div class="h-meta">${esc(h.region)} · Lv.${h.level||'?'} · ${new Date(h.created_at||Date.now()).toLocaleDateString()}</div></div>
-          <div class="h-likes">+${h.likes_given||0}</div>
-        </div>`).join('');
+      list.innerHTML = data.history.slice(0, 5).map(h => {
+        const isOk = h.status === 'success' && (h.likes_given > 0);
+        const name = (h.nickname && h.nickname !== 'Unknown') ? h.nickname : h.uid;
+        return `
+        <div class="history-row" style="padding:10px 0">
+          <div>
+            <div class="h-uid"><b>${esc(name)}</b> <span style="font-size:11px;color:var(--muted)">(${esc(h.uid)})</span></div>
+            <div class="h-meta" style="font-size:11px;margin-top:2px">
+              ${esc(h.region)} · Lv.${h.level || '?'} · Before: ${h.likes_before ?? '—'} · After: ${h.likes_after ?? '—'}
+            </div>
+            <div style="font-size:10px;margin-top:3px;color:${isOk ? '#62e6ae' : '#facc15'}">
+              ${isOk ? '✓ Success' : '⚠️ Failed / Refunded'} · ${new Date(h.created_at || Date.now()).toLocaleDateString('en-IN', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}
+            </div>
+          </div>
+          <div class="h-likes" style="${isOk ? 'color:#62e6ae' : 'color:var(--muted)'}">
+            ${isOk ? '+' + h.likes_given : '0'}
+          </div>
+        </div>`;
+      }).join('');
     } catch (_) {}
   }
 

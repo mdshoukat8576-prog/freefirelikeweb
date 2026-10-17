@@ -12,7 +12,7 @@ if (fs.existsSync(envPath)) require('dotenv').config({ path: envPath });
 else if (fs.existsSync(envExPath)) require('dotenv').config({ path: envExPath });
 
 // Modules (load after env)
-const { notifyAdmin, notifyGuildGloryOrder, checkChannelMembership, processTelegramUpdate, createPendingAuthToken, getPendingAuthToken, consumePendingAuthToken } = require('./bot');
+const { notifyAdmin, notifyAdminMessage, notifyGuildGloryOrder, checkChannelMembership, processTelegramUpdate, createPendingAuthToken, getPendingAuthToken, consumePendingAuthToken } = require('./bot');
 const db = require('./db');
 const { authMiddleware, optionalAuth, verifyTelegramLogin, setSessionCookie, clearSessionCookie, verifyLoginToken } = require('./auth');
 
@@ -399,7 +399,10 @@ app.post('/api/likes/request', authMiddleware, async (req, res) => {
     if (!/^\d{5,15}$/.test(String(uid||''))) return res.status(400).json({ error: 'Invalid UID (5-15 digits)' });
     if (!SERVERS.includes(String(region||''))) return res.status(400).json({ error: 'Invalid region' });
 
-    const user = db.getUserById(req.userId);
+    let user = db.getUserById(req.userId);
+    if (!user && req.userTid) {
+      user = db.upsertUser({ telegram_id: req.userTid, name: req.userName || 'User', username: req.userUsername || null, photo_url: null });
+    }
     if (!user) return res.status(404).json({ error: 'User not found' });
     if (!user.channels_verified) return res.status(403).json({ error: 'Please verify channel membership first' });
     if (user.credits < 1) return res.status(402).json({ error: 'No credits. Purchase credits to continue.' });
@@ -409,7 +412,7 @@ app.post('/api/likes/request', authMiddleware, async (req, res) => {
     catch (_) { return res.status(402).json({ error: 'Insufficient credits' }); }
 
     const apiRegion = REGION_MAP[region] || region.toLowerCase();
-    let apiResult = null, likesGiven = 0;
+    let apiResult = null, likesGiven = 0, likesBefore = 0, likesAfter = 0, nickname = 'Unknown', level = 0;
 
     try {
       const ctrl = new AbortController();
@@ -417,33 +420,53 @@ app.post('/api/likes/request', authMiddleware, async (req, res) => {
       const r = await fetch(`https://all-server-eight.vercel.app/like?uid=${encodeURIComponent(uid)}&region=${encodeURIComponent(apiRegion)}`, { signal: ctrl.signal });
       clearTimeout(t);
       apiResult = await r.json();
-      likesGiven = Number(apiResult.LikesGivenByAPI || apiResult.likes_given || 0);
+
+      likesBefore = Number(apiResult.LikesbeforeCommand ?? apiResult.LikesBefore ?? apiResult.likes_before ?? 0);
+      likesAfter  = Number(apiResult.LikesafterCommand ?? apiResult.LikesAfter ?? apiResult.likes_after ?? 0);
+      likesGiven  = Number(apiResult.LikesGivenByAPI ?? apiResult.likes_given ?? (likesAfter > likesBefore ? likesAfter - likesBefore : 0));
+      nickname    = String(apiResult.PlayerNickname || apiResult.player_nickname || apiResult.nickname || 'Unknown');
+      level       = Number(apiResult.Level || apiResult.level || 0);
     } catch (e) {
       try { db.updateUserCredits(user.id, 1, 'refund', 'API error refund', String(uid)); } catch (_) {}
-      return res.status(502).json({ error: 'Likes API unavailable. Credit refunded.' });
+      db.createLikesRequest({
+        user_id: user.id, uid: String(uid), region,
+        likes_before: 0, likes_after: 0, likes_given: 0,
+        nickname: 'Unknown', level: 0,
+        status: 'failed',
+        credit_charged: 0
+      });
+      return res.status(502).json({ error: 'Likes API unavailable or timed out. Credit refunded.' });
     }
 
-    if (likesGiven <= 0) {
+    const isSuccess = likesGiven > 0;
+    if (!isSuccess) {
       try { db.updateUserCredits(user.id, 1, 'refund', 'No likes given — refund', String(uid)); } catch (_) {}
     }
 
     db.createLikesRequest({
       user_id: user.id, uid: String(uid), region,
-      likes_before: Number(apiResult.LikesBefore||0), likes_after: Number(apiResult.LikesAfter||0),
+      likes_before: likesBefore,
+      likes_after: likesAfter,
       likes_given: likesGiven,
-      nickname: String(apiResult.PlayerNickname||'Unknown'),
-      level: Number(apiResult.Level||0),
-      status: likesGiven > 0 ? 'success' : 'no_likes',
-      credit_charged: likesGiven > 0 ? 1 : 0
+      nickname: nickname,
+      level: level,
+      status: isSuccess ? 'success' : 'failed',
+      credit_charged: isSuccess ? 1 : 0
     });
 
     const fresh = db.getUserById(user.id);
     res.json({
-      ok: true, likesGiven, uid: String(uid), region,
-      nickname: apiResult.PlayerNickname||'Unknown', level: apiResult.Level||0,
-      likesBefore: apiResult.LikesBefore||0, likesAfter: apiResult.LikesAfter||0,
+      ok: true,
+      likesGiven,
+      uid: String(uid),
+      region,
+      nickname,
+      level,
+      likesBefore,
+      likesAfter,
+      status: isSuccess ? 'success' : 'failed',
       credits: Number(fresh.credits),
-      message: likesGiven > 0 ? `✅ ${likesGiven} likes sent!` : '⚠️ No likes sent. Credit refunded.'
+      message: isSuccess ? `✅ ${likesGiven} likes sent!` : '⚠️ No likes sent by API. Credit refunded.'
     });
   } catch (e) {
     console.error('[Likes]', e.message);
@@ -458,6 +481,9 @@ app.get('/api/likes/history', authMiddleware, async (req, res) => {
   } catch (_) { res.status(500).json({ error: 'Failed' }); }
 });
 
+const RZP_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_live_TjLssaMvrhNiaM';
+const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'm4QvtUZQ3nz417MqTN2X3t6d';
+
 // ── Credits / Razorpay ────────────────────────────────────────────────────────
 app.post('/api/credits/order', authMiddleware, async (req, res) => {
   try {
@@ -466,17 +492,17 @@ app.post('/api/credits/order', authMiddleware, async (req, res) => {
     if (!credits || credits < 1 || credits > 1000) return res.status(400).json({ error: 'Credits must be 1–1000' });
     const amountPaise = credits * 500;
 
-    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET)
+    if (!RZP_KEY_ID || !RZP_KEY_SECRET)
       return res.json({ error: 'Payment not configured', setup: true });
 
     const Razorpay = require('razorpay');
-    const rzp = new Razorpay({ key_id: process.env.RAZORPAY_KEY_ID, key_secret: process.env.RAZORPAY_KEY_SECRET });
+    const rzp = new Razorpay({ key_id: RZP_KEY_ID, key_secret: RZP_KEY_SECRET });
     const rzpOrder = await rzp.orders.create({ amount: amountPaise, currency: 'INR', receipt: `cr_${req.userId}_${Date.now()}` });
     db.createCreditOrder({ user_id: req.userId, razorpay_order_id: rzpOrder.id, credits, amount_paise: amountPaise });
-    res.json({ ok: true, orderId: rzpOrder.id, amount: amountPaise, currency: 'INR', credits, keyId: process.env.RAZORPAY_KEY_ID });
+    res.json({ ok: true, orderId: rzpOrder.id, amount: amountPaise, currency: 'INR', credits, keyId: RZP_KEY_ID });
   } catch (e) {
     console.error('[Credits]', e.message);
-    res.status(500).json({ error: 'Failed to create payment order' });
+    res.status(500).json({ error: 'Failed to create payment order: ' + e.message });
   }
 });
 
@@ -486,7 +512,7 @@ app.post('/api/credits/verify', authMiddleware, async (req, res) => {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature)
       return res.status(400).json({ error: 'Missing fields' });
-    const secret = process.env.RAZORPAY_KEY_SECRET;
+    const secret = RZP_KEY_SECRET;
     if (!secret) return res.status(503).json({ error: 'Payment not configured' });
     const expected = crypto.createHmac('sha256', secret).update(`${razorpay_order_id}|${razorpay_payment_id}`).digest('hex');
     if (expected !== razorpay_signature) return res.status(400).json({ error: 'Invalid signature' });
@@ -498,10 +524,28 @@ app.post('/api/credits/verify', authMiddleware, async (req, res) => {
 
     db.fulfillCreditOrder(razorpay_order_id, razorpay_payment_id);
     const newBal = db.updateUserCredits(req.userId, order.credits, 'purchase', 'Razorpay credit purchase', razorpay_payment_id);
+
+    // Notify Telegram Admin
+    try {
+      const u = db.getUserById(req.userId);
+      const text = [
+        '💳 <b>NEW CREDIT PURCHASE (RAZORPAY)</b>', '',
+        `<b>User:</b> ${esc(u?.name || 'User')} ${u?.username ? '(@' + esc(u.username) + ')' : ''}`,
+        `<b>Telegram ID:</b> <code>${esc(u?.telegram_id || 'N/A')}</code>`,
+        `<b>Credits Added:</b> +${order.credits}`,
+        `<b>Amount Paid:</b> ₹${order.amount_paise / 100}`,
+        `<b>New Balance:</b> ${newBal} credits`,
+        `<b>Payment ID:</b> <code>${esc(razorpay_payment_id)}</code>`,
+        `<b>Order ID:</b> <code>${esc(razorpay_order_id)}</code>`,
+        `<b>Time:</b> ${esc(new Date().toLocaleString('en-IN'))}`
+      ].join('\n');
+      notifyAdminMessage(text);
+    } catch (_) {}
+
     res.json({ ok: true, credits: newBal });
   } catch (e) {
     console.error('[Credits verify]', e.message);
-    res.status(500).json({ error: 'Verification failed' });
+    res.status(500).json({ error: 'Verification failed: ' + e.message });
   }
 });
 
