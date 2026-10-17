@@ -122,10 +122,27 @@ function createSchema() {
     created_at TEXT DEFAULT (datetime('now'))
   )`);
   try { db.run(`ALTER TABLE guild_glory_orders ADD COLUMN guild_uid TEXT`); } catch (_) {}
-  try { db.run(`ALTER TABLE guild_glory_orders ADD COLUMN region TEXT`); } catch (_) {}
   db.run(`CREATE TABLE IF NOT EXISTS webhook_events (
     event_id TEXT PRIMARY KEY,
     processed_at TEXT DEFAULT (datetime('now'))
+  )`);
+  db.run(`CREATE TABLE IF NOT EXISTS credit_purchase_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_ref TEXT UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
+    telegram_id TEXT NOT NULL,
+    name TEXT,
+    username TEXT,
+    credits INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    utr TEXT NOT NULL,
+    telegram TEXT,
+    proof TEXT,
+    status TEXT DEFAULT 'pending',
+    admin_note TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
   )`);
 }
 
@@ -309,6 +326,50 @@ function fulfillCreditOrder(rpOrderId, paymentId) {
   return getCreditOrder(rpOrderId);
 }
 
+// ─── Manual Credit Purchase Orders ──────────────────────────────────────────
+function createCreditPurchaseOrder(d) {
+  dbRun(
+    'INSERT INTO credit_purchase_orders (order_ref, user_id, telegram_id, name, username, credits, currency, amount, utr, telegram, proof, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+    [
+      d.order_ref,
+      d.user_id,
+      String(d.telegram_id || ''),
+      d.name || '',
+      d.username || '',
+      d.credits,
+      d.currency,
+      d.amount,
+      d.utr,
+      d.telegram || '',
+      d.proof || '',
+      'pending'
+    ]
+  );
+  cloudStore.saveCreditPurchaseOrder(d.order_ref, d).catch(() => {});
+  return getCreditPurchaseOrderByRef(d.order_ref);
+}
+
+function getCreditPurchaseOrderByRef(orderRef) {
+  return dbGet('SELECT * FROM credit_purchase_orders WHERE order_ref = ?', [orderRef]);
+}
+
+function getCreditPurchaseOrders(userId, limit = 30) {
+  return dbAll('SELECT * FROM credit_purchase_orders WHERE user_id = ? ORDER BY id DESC LIMIT ?', [userId, limit]);
+}
+
+function getCreditPurchaseOrdersByTid(telegramId, limit = 30) {
+  return dbAll('SELECT * FROM credit_purchase_orders WHERE telegram_id = ? ORDER BY id DESC LIMIT ?', [String(telegramId), limit]);
+}
+
+function updateCreditPurchaseOrder(orderRef, fields) {
+  const allowed = ['status', 'admin_note', 'proof', 'utr', 'updated_at'];
+  const keys = Object.keys(fields).filter(k => allowed.includes(k));
+  if (!keys.length) return;
+  const sets = keys.map(k => `${k}=?`).join(',');
+  dbRun(`UPDATE credit_purchase_orders SET ${sets} WHERE order_ref=?`, [...keys.map(k => fields[k]), orderRef]);
+  cloudStore.saveCreditPurchaseOrder(orderRef, fields).catch(() => {});
+}
+
 // ─── Guild Glory ─────────────────────────────────────────────────────────────
 function getGuildGloryOrders(userId) {
   return dbAll('SELECT * FROM guild_glory_orders WHERE user_id=? ORDER BY created_at DESC', [userId]);
@@ -370,6 +431,7 @@ module.exports = {
   syncUserFromCloud,
   getLikesHistory, getLikesHistoryAsync, createLikesRequest,
   getCreditHistory, createCreditOrder, getCreditOrder, fulfillCreditOrder,
+  createCreditPurchaseOrder, getCreditPurchaseOrderByRef, getCreditPurchaseOrders, getCreditPurchaseOrdersByTid, updateCreditPurchaseOrder,
   getGuildGloryOrders, getGuildGloryOrderByRef, createGuildGloryOrder, updateGuildGloryOrder,
   getReferralInfo, createReferral, completeReferral,
   isWebhookProcessed, markWebhookProcessed,

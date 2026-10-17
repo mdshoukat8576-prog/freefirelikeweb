@@ -195,19 +195,96 @@
       <div id="likesResult" style="margin-top:14px"></div>
     </div>
 
-    <!-- Buy Credits -->
+    <!-- Buy Credits (Manual UPI & USDT Payment like Like & Glory) -->
     <div class="buy-credits-box">
-      <h3>💳 Buy More Credits</h3>
-      <p style="color:var(--muted);font-size:12px;line-height:1.6;margin-bottom:14px">1 credit = ₹5 · Use credits to send likes to any UID anytime</p>
-      <div class="credits-input-row">
-        <div class="field" style="margin:0">
-          <label for="creditsQty">Credits to Buy</label>
-          <input id="creditsQty" type="number" min="1" max="1000" value="10" placeholder="Enter quantity">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div>
+          <h3 style="margin:0 0 4px">💳 Buy Credits</h3>
+          <p style="color:var(--muted);font-size:12px;margin:0">1 Credit = ₹5 (INR) · 1 Credit = $1 (USDT)</p>
         </div>
-        <button class="primary" id="buyCreditsBtn" type="button" style="min-height:48px;margin-top:21px">Pay Now</button>
+        <div class="currency-tabs" style="display:flex;gap:6px">
+          <button class="currency-tab active" id="buyTabINR" type="button" style="padding:6px 12px;font-size:12px;border-radius:8px">🇮🇳 INR (UPI)</button>
+          <button class="currency-tab" id="buyTabUSDT" type="button" style="padding:6px 12px;font-size:12px;border-radius:8px">💰 USDT (Binance)</button>
+        </div>
       </div>
-      <div class="credit-price-line" id="creditPriceLine">Total: ₹50</div>
-      <div id="buyCreditsResult"></div>
+
+      <!-- Quantity Presets & Input -->
+      <div style="margin-bottom:14px">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:6px">Select or Enter Credits Quantity:</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+          <button type="button" class="preset-pill" data-qty="5" style="background:#2a2f42;color:#fff;border:1px solid rgba(255,255,255,0.1);padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer">+5 Cr</button>
+          <button type="button" class="preset-pill active" data-qty="10" style="background:var(--accent,#7c5cff);color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:700">+10 Cr</button>
+          <button type="button" class="preset-pill" data-qty="20" style="background:#2a2f42;color:#fff;border:1px solid rgba(255,255,255,0.1);padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer">+20 Cr</button>
+          <button type="button" class="preset-pill" data-qty="50" style="background:#2a2f42;color:#fff;border:1px solid rgba(255,255,255,0.1);padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer">+50 Cr</button>
+          <button type="button" class="preset-pill" data-qty="100" style="background:#2a2f42;color:#fff;border:1px solid rgba(255,255,255,0.1);padding:6px 12px;border-radius:8px;font-size:12px;cursor:pointer">+100 Cr</button>
+        </div>
+        <div class="field" style="margin:0">
+          <input id="creditsQty" type="number" min="1" max="10000" value="10" placeholder="Custom credits (e.g. 10)">
+        </div>
+      </div>
+
+      <!-- Amount to Pay Box -->
+      <div style="background:rgba(124,92,255,0.08);border:1px solid rgba(124,92,255,0.25);border-radius:10px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+        <span style="font-size:13px;color:#fff">Pay exactly</span>
+        <strong id="buyAmountDisplay" style="font-size:18px;color:#62e6ae;font-family:'Space Grotesk',sans-serif">₹50</strong>
+      </div>
+
+      <!-- Payment QR & Details Box -->
+      <div class="payment-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:16px">
+        <!-- QR Box -->
+        <div class="qr-box" style="background:rgba(255,255,255,0.03);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center">
+          <div id="buyQrINR">
+            <div class="qr-wrap" style="width:160px;height:160px;margin:0 auto 10px;background:#fff;padding:8px;border-radius:10px">
+              <img src="assets/payment-qr.png" alt="UPI QR" style="width:100%;height:100%;object-fit:contain;display:block">
+            </div>
+            <div style="font-weight:700;font-size:13px;color:#fff;margin-bottom:6px">Mohhamad Riyaz</div>
+            <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+              <button class="copy-btn" data-copy="riyaznxx@nyes" type="button" style="font-size:11px;padding:5px 10px">riyaznxx@nyes · Copy</button>
+              <a class="copy-btn" href="assets/payment-qr.png" download="FFLike-UPI-QR.png" target="_blank" rel="noopener" style="font-size:11px;padding:5px 10px;text-decoration:none">Download QR ⤓</a>
+            </div>
+          </div>
+          <div id="buyQrUSDT" style="display:none">
+            <div class="qr-wrap" style="width:160px;height:160px;margin:0 auto 10px;background:#fff;padding:8px;border-radius:10px">
+              <img src="assets/binance-qr.png" alt="Binance USDT QR" style="width:100%;height:100%;object-fit:contain;display:block">
+            </div>
+            <div style="font-weight:700;font-size:13px;color:#fff;margin-bottom:6px">Binance Pay (USDT BEP20)</div>
+            <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+              <button class="copy-btn" data-copy="1224877861" type="button" style="font-size:11px;padding:5px 10px">ID: 1224877861 · Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Verification Form -->
+        <div>
+          <form id="buyCreditsForm" class="form" style="display:flex;flex-direction:column;gap:12px">
+            <div class="field" style="margin:0">
+              <label id="buyUtrLabel" for="buyUtr" style="font-size:12px">UTR / Reference Number <span style="color:#ef4444">*</span></label>
+              <input id="buyUtr" name="utr" required placeholder="Enter 12-digit UPI UTR number" maxlength="64">
+            </div>
+            <div class="field" style="margin:0">
+              <label for="buyProof" style="font-size:12px">Payment Screenshot (Proof)</label>
+              <input id="buyProof" name="proof" type="file" accept="image/jpeg,image/png,image/webp" style="padding:8px;font-size:12px">
+            </div>
+            <div class="field" style="margin:0">
+              <label for="buyTelegram" style="font-size:12px">Telegram Username or Phone (Optional)</label>
+              <input id="buyTelegram" name="telegram" placeholder="@yourusername or phone">
+            </div>
+            <button class="primary full" id="submitCreditBuyBtn" type="submit" style="min-height:46px;margin-top:4px">
+              🚀 Submit Payment Verification
+            </button>
+          </form>
+          <div id="buyCreditsResult" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- My Credit Orders List -->
+      <div id="creditOrdersMini" style="border-top:1px solid rgba(255,255,255,0.08);padding-top:14px;margin-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <h4 style="margin:0;font-size:13px;color:#fff">📋 My Credit Orders</h4>
+          <button type="button" id="refreshCreditOrdersBtn" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;text-decoration:underline">Refresh ↺</button>
+        </div>
+        <div id="creditOrdersList" style="font-size:12px;color:var(--muted)">Loading orders…</div>
+      </div>
     </div>
 
     <!-- Referral -->
@@ -377,6 +454,7 @@ function startTgConnect() {
       populateRegions();
       loadReferral();
       loadHistory();
+      loadCreditOrders();
       setState('stateReady');
     }
   }
@@ -485,143 +563,197 @@ function startTgConnect() {
     btn.innerHTML = 'Send Likes <span>↗</span>';
   });
 
-  // Buy credits
-  $('#creditsQty')?.addEventListener('input', () => {
+  // ── Manual UPI / USDT Credit Purchase ─────────────────────────────
+  let currentCurrency = 'INR';
+
+  function updateAmountDisplay() {
     const qty = parseInt($('#creditsQty')?.value, 10) || 0;
-    $('#creditPriceLine').textContent = `Total: ₹${qty * 5}`;
+    const disp = $('#buyAmountDisplay');
+    if (!disp) return;
+    if (currentCurrency === 'INR') {
+      disp.textContent = `₹${qty * 5}`;
+    } else {
+      disp.textContent = `$${qty * 1} USDT`;
+    }
+  }
+
+  // Currency Switchers
+  $('#buyTabINR')?.addEventListener('click', () => {
+    currentCurrency = 'INR';
+    $('#buyTabINR')?.classList.add('active');
+    $('#buyTabUSDT')?.classList.remove('active');
+    const qrInr = $('#buyQrINR');
+    const qrUsdt = $('#buyQrUSDT');
+    if (qrInr) qrInr.style.display = 'block';
+    if (qrUsdt) qrUsdt.style.display = 'none';
+    const label = $('#buyUtrLabel');
+    if (label) label.innerHTML = 'UTR / Reference Number <span style="color:#ef4444">*</span>';
+    const utrInp = $('#buyUtr');
+    if (utrInp) utrInp.placeholder = 'Enter 12-digit UPI UTR number';
+    updateAmountDisplay();
   });
 
-  let pollInterval = null;
+  $('#buyTabUSDT')?.addEventListener('click', () => {
+    currentCurrency = 'USDT';
+    $('#buyTabUSDT')?.classList.add('active');
+    $('#buyTabINR')?.classList.remove('active');
+    const qrInr = $('#buyQrINR');
+    const qrUsdt = $('#buyQrUSDT');
+    if (qrInr) qrInr.style.display = 'none';
+    if (qrUsdt) qrUsdt.style.display = 'block';
+    const label = $('#buyUtrLabel');
+    if (label) label.innerHTML = 'Binance Order / TxID <span style="color:#ef4444">*</span>';
+    const utrInp = $('#buyUtr');
+    if (utrInp) utrInp.placeholder = 'Enter Binance Pay Order ID or TxID';
+    updateAmountDisplay();
+  });
 
-  $('#buyCreditsBtn')?.addEventListener('click', async () => {
+  // Quantity presets
+  document.querySelectorAll('.preset-pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      document.querySelectorAll('.preset-pill').forEach(p => {
+        p.classList.remove('active');
+        p.style.background = '#2a2f42';
+        p.style.fontWeight = 'normal';
+      });
+      pill.classList.add('active');
+      pill.style.background = 'var(--accent, #7c5cff)';
+      pill.style.fontWeight = '700';
+      const qty = parseInt(pill.dataset.qty, 10) || 10;
+      const inp = $('#creditsQty');
+      if (inp) inp.value = qty;
+      updateAmountDisplay();
+    });
+  });
+
+  $('#creditsQty')?.addEventListener('input', () => {
+    const qty = parseInt($('#creditsQty')?.value, 10) || 0;
+    document.querySelectorAll('.preset-pill').forEach(p => {
+      if (parseInt(p.dataset.qty, 10) === qty) {
+        p.classList.add('active');
+        p.style.background = 'var(--accent, #7c5cff)';
+        p.style.fontWeight = '700';
+      } else {
+        p.classList.remove('active');
+        p.style.background = '#2a2f42';
+        p.style.fontWeight = 'normal';
+      }
+    });
+    updateAmountDisplay();
+  });
+
+  // Global copy buttons
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.copy || btn.getAttribute('data-copy');
+      if (val && navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(val).then(() => {
+          const old = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = old; }, 2000);
+        });
+      }
+    });
+  });
+
+  // Credit Purchase Form Submit
+  $('#buyCreditsForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
     const credits = parseInt($('#creditsQty')?.value, 10);
+    const utr = $('#buyUtr')?.value.trim();
+    const proofFile = $('#buyProof')?.files[0];
+    const telegram = $('#buyTelegram')?.value.trim();
     const resultEl = $('#buyCreditsResult');
-    const buyBtn = $('#buyCreditsBtn');
-    if (!credits || credits < 1) { resultEl.innerHTML = '<div class="err-box" style="margin-top:8px">Enter valid quantity</div>'; return; }
-    
-    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+    const submitBtn = $('#submitCreditBuyBtn');
 
-    buyBtn.disabled = true;
-    buyBtn.innerHTML = 'Creating Order… <span class="spinner"></span>';
+    if (!credits || credits < 1) {
+      resultEl.innerHTML = '<div class="err-box" style="margin-top:8px">Please enter a valid credit quantity (minimum 1).</div>';
+      return;
+    }
+    if (!utr) {
+      resultEl.innerHTML = '<div class="err-box" style="margin-top:8px">Please enter UTR or Transaction Reference.</div>';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = 'Submitting Payment… <span class="spinner"></span>';
     resultEl.innerHTML = '';
 
     try {
-      const r = await fetch('/api/credits/order', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credits })
+      const fd = new FormData();
+      fd.append('credits', credits);
+      fd.append('currency', currentCurrency);
+      fd.append('utr', utr);
+      if (proofFile) fd.append('proof', proofFile);
+      if (telegram) fd.append('telegram', telegram);
+
+      const r = await fetch('/api/credits/buy', {
+        method: 'POST',
+        body: fd
       });
       const data = await r.json();
-      buyBtn.disabled = false;
-      buyBtn.innerHTML = 'Pay with Razorpay <span>↗</span>';
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '🚀 Submit Payment Verification';
 
-      if (data.setup || data.error) {
-        resultEl.innerHTML = `<div class="err-box" style="margin-top:8px">${data.error || 'Payment not configured. Contact admin.'}</div>`;
+      if (!r.ok || !data.ok) {
+        resultEl.innerHTML = `<div class="err-box" style="margin-top:8px">${esc(data.error || 'Failed to submit verification.')}</div>`;
         return;
       }
 
-      if (data.ok && data.orderId) {
-        const orderId = data.orderId;
-        const plinkId = data.paymentLinkId;
-        const plinkUrl = data.paymentLinkUrl;
-        const totalInr = data.amount / 100;
+      resultEl.innerHTML = `
+        <div style="background:rgba(98,230,174,0.12);border:1px solid #62e6ae;color:#62e6ae;padding:14px;border-radius:10px;font-size:13px;margin-top:10px">
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px">🎉 Order Submitted for Verification!</div>
+          <div style="color:var(--text);font-size:12px;margin-bottom:6px">Ref: <b>${esc(data.order?.order_ref || 'OK')}</b> · ${credits} Credits (${currentCurrency === 'INR' ? '₹' + (credits*5) : '$' + credits + ' USDT'})</div>
+          <div style="color:var(--muted);font-size:11px">Admin is verifying your payment screenshot & UTR. Credits will be automatically added to your balance upon approval. You will receive a Telegram message!</div>
+        </div>
+      `;
 
-        function markPaid(newBal) {
-          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-          user.credits = newBal;
-          $('#profileCard3').innerHTML = profileCardHtml(user);
-          resultEl.innerHTML = `<div style="background:rgba(98,230,174,0.12);border:1px solid #62e6ae;color:#62e6ae;padding:12px;border-radius:8px;font-size:13px;font-weight:700;margin-top:10px">🎉 Payment Successful! ${credits} Credits Added! New Balance: ${newBal}</div>`;
-        }
+      if ($('#buyUtr')) $('#buyUtr').value = '';
+      if ($('#buyProof')) $('#buyProof').value = '';
 
-        resultEl.innerHTML = `
-          <div style="background:rgba(124,92,255,0.08);border:1px solid rgba(124,92,255,0.3);border-radius:10px;padding:14px;margin-top:12px">
-            <div style="font-weight:700;font-size:14px;color:#fff;margin-bottom:6px">Complete ₹${totalInr} Payment for ${credits} Credits</div>
-            <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Scan QR with any UPI app (GPay, PhonePe, Paytm, BHIM) or open link:</div>
-            
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              ${plinkUrl ? `
-              <a href="${plinkUrl}" target="_blank" rel="noopener noreferrer" class="btn" style="flex:1;min-width:180px;text-align:center;text-decoration:none;padding:10px 14px;font-size:13px;background:linear-gradient(135deg,#00c853,#00e676);color:#052e16;font-weight:700;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px">
-                ⚡ Open Razorpay UPI Link ↗
-              </a>` : ''}
-              <button type="button" id="retryModalBtn" class="btn" style="flex:1;min-width:130px;padding:10px 14px;font-size:13px;background:#2a2f42;color:#fff;border-radius:8px;cursor:pointer">
-                📱 Open In-Page Popup
-              </button>
-            </div>
-            
-            <div style="margin-top:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-              <button type="button" id="checkPayStatusBtn" class="btn" style="background:#1e2433;border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:12px;padding:7px 14px;border-radius:6px;cursor:pointer">
-                🔄 Check Payment Status
-              </button>
-              <span id="pollStatusMsg" style="font-size:11px;color:var(--muted)">⏳ Auto-verifying payment...</span>
-            </div>
-          </div>
-        `;
-
-        function openModal() {
-          const options = {
-            key: data.keyId, amount: data.amount, currency: 'INR',
-            name: 'FFLike Credits', description: `${credits} credits`, order_id: orderId,
-            handler: async function(resp) {
-              try {
-                const vr = await fetch('/api/credits/verify', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(resp) });
-                const vd = await vr.json();
-                if (vd.ok) markPaid(vd.credits);
-                else resultEl.innerHTML = `<div class="err-box" style="margin-top:8px">${vd.error}</div>`;
-              } catch (_) {}
-            },
-            prefill: user ? { name: user.name, contact: '' } : {},
-            theme: { color: '#7c5cff' }
-          };
-          if (window.Razorpay) { new window.Razorpay(options).open(); }
-          else { const s = document.createElement('script'); s.src='https://checkout.razorpay.com/v1/checkout.js'; s.onload = () => new window.Razorpay(options).open(); document.head.appendChild(s); }
-        }
-
-        $('#retryModalBtn')?.addEventListener('click', openModal);
-
-        $('#checkPayStatusBtn')?.addEventListener('click', async () => {
-          const btn = $('#checkPayStatusBtn');
-          btn.textContent = 'Checking…';
-          try {
-            const vr = await fetch('/api/credits/verify-link', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ orderId, paymentLinkId: plinkId })
-            });
-            const vd = await vr.json();
-            if (vd.ok) markPaid(vd.credits);
-            else {
-              btn.textContent = '🔄 Check Payment Status';
-              const msg = $('#pollStatusMsg');
-              if (msg) msg.textContent = '⚠️ ' + (vd.message || 'Payment not detected yet. Try again after paying.');
-            }
-          } catch (_) {
-            btn.textContent = '🔄 Check Payment Status';
-          }
-        });
-
-        // Start auto-poll every 4s for up to 2.5 minutes
-        let pollCount = 0;
-        pollInterval = setInterval(async () => {
-          pollCount++;
-          if (pollCount > 38) { clearInterval(pollInterval); pollInterval = null; return; }
-          try {
-            const q = `?orderId=${encodeURIComponent(orderId)}${plinkId ? '&paymentLinkId=' + encodeURIComponent(plinkId) : ''}`;
-            const cr = await fetch(`/api/credits/check-status${q}`);
-            const cd = await cr.json();
-            if (cd.isPaid) {
-              markPaid(cd.credits);
-            }
-          } catch (_) {}
-        }, 4000);
-
-        // Also trigger modal immediately
-        openModal();
-      }
-    } catch (_) {
-      buyBtn.disabled = false;
-      buyBtn.innerHTML = 'Pay with Razorpay <span>↗</span>';
-      resultEl.innerHTML = '<div class="err-box" style="margin-top:8px">Payment creation failed. Try again.</div>';
+      loadCreditOrders();
+    } catch (err) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '🚀 Submit Payment Verification';
+      resultEl.innerHTML = '<div class="err-box" style="margin-top:8px">Network error. Please try again.</div>';
     }
   });
+
+  // Credit Orders List
+  async function loadCreditOrders() {
+    const container = $('#creditOrdersList');
+    if (!container) return;
+    try {
+      const r = await fetch('/api/credits/orders');
+      const data = await r.json();
+      if (!data.orders || !data.orders.length) {
+        container.innerHTML = '<div style="font-size:12px;color:var(--muted)">No credit orders yet.</div>';
+        return;
+      }
+      container.innerHTML = data.orders.slice(0, 5).map(o => {
+        const isAccepted = o.status === 'accepted';
+        const isRejected = o.status === 'rejected';
+        const statusColor = isAccepted ? '#62e6ae' : (isRejected ? '#ef4444' : '#facc15');
+        const statusLabel = isAccepted ? '✓ Approved' : (isRejected ? '✗ Rejected' : '⏳ Pending Review');
+        const dateStr = new Date(o.created_at || Date.now()).toLocaleDateString('en-IN', {
+          day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+        });
+        return `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);gap:10px">
+            <div>
+              <div style="font-weight:700;color:#fff;font-size:12px">+${o.credits} Credits <span style="font-size:11px;color:var(--muted);font-weight:normal">(${esc(o.amount || '')})</span></div>
+              <div style="font-size:11px;color:var(--muted)">UTR: ${esc(o.utr || '—')} · ${dateStr}</div>
+            </div>
+            <span style="font-size:11px;font-weight:700;color:${statusColor};background:rgba(255,255,255,0.04);padding:4px 8px;border-radius:6px;white-space:nowrap">${statusLabel}</span>
+          </div>
+        `;
+      }).join('');
+    } catch (_) {
+      container.innerHTML = '<div style="font-size:12px;color:var(--muted)">Failed to load orders.</div>';
+    }
+  }
+
+  $('#refreshCreditOrdersBtn')?.addEventListener('click', loadCreditOrders);
 
   async function loadReferral() {
     try {
@@ -711,32 +843,6 @@ function startTgConnect() {
     }
     renderState();
 
-    // 3. Check for return from payment link (?payment=done)
-    const orderId = urlParams.get('order_id');
-    const plink = urlParams.get('plink');
-    const paymentDone = urlParams.get('payment');
-    if (paymentDone && (orderId || plink)) {
-      try {
-        const vr = await fetch('/api/credits/verify-link', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ orderId, paymentLinkId: plink })
-        });
-        const vd = await vr.json();
-        if (vd.ok) {
-          const cleanUrl = location.pathname + (urlParams.get('ref') ? `?ref=${urlParams.get('ref')}` : '');
-          window.history.replaceState({}, '', cleanUrl);
-          if (user) {
-            user.credits = vd.credits;
-            renderState();
-          }
-          setTimeout(() => {
-            const resEl = $('#buyCreditsResult');
-            if (resEl) resEl.innerHTML = `<div style="background:rgba(98,230,174,0.12);border:1px solid #62e6ae;color:#62e6ae;padding:12px;border-radius:8px;font-size:13px;font-weight:700;margin-top:10px">🎉 Payment Successful! Balance: ${vd.credits} credits!</div>`;
-          }, 600);
-        }
-      } catch (_) {}
-    }
   }
 
   init();

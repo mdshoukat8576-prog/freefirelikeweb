@@ -13,7 +13,6 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
-    "razorpay": "^2.9.8",
     "sql.js": "^1.15.0"
   }
 }

@@ -146,21 +146,160 @@ async function answerCallback(id, text){
 
 async function handleCallback(q){
   const parts = String(q.data || '').split(':');
-  if (parts.length !== 3 || parts[0] !== 'order') return answerCallback(q.id,'Unknown action');
-  const action = parts[1], orderId = parts[2];
-  const map = {accept:'processing',reject:'rejected',processing:'processing',completed:'completed'};
-  const status = map[action];
-  if (!status) return answerCallback(q.id,'Invalid action');
-  const orders=readOrders(); const idx=orders.findIndex(o=>o.id===orderId);
-  if(idx<0) return answerCallback(q.id,'Order not found');
-  orders[idx].status=status; orders[idx].updatedAt=new Date().toISOString(); writeOrders(orders);
-  await answerCallback(q.id, status==='processing'?'Order accepted and moved to processing':status==='rejected'?'Order rejected':'Order marked completed');
-  const updated=orders[idx];
-  const statusLabel = {processing:'⚙️ PROCESSING',rejected:'❌ REJECTED',completed:'🏁 COMPLETED'}[status] || status;
+  if (parts.length !== 3) return answerCallback(q.id,'Unknown action');
+
+  // Credit Purchase Orders: credit:accept:REF or credit:reject:REF
+  if (parts[0] === 'credit') {
+    const action = parts[1];
+    const orderRef = parts[2];
+    const db = require('./db');
+    const cloudStore = require('./cloudStore');
+    try { await db.initDb(); } catch (_) {}
+
+    let order = db.getCreditPurchaseOrderByRef(orderRef) || await cloudStore.getCreditPurchaseOrder(orderRef);
+    if (!order) return answerCallback(q.id, 'Credit order not found: ' + orderRef);
+    if (order.status && order.status !== 'pending') return answerCallback(q.id, 'Already ' + order.status);
+
+    if (action === 'accept') {
+      db.updateCreditPurchaseOrder(orderRef, { status: 'accepted', updated_at: new Date().toISOString() });
+      await cloudStore.saveCreditPurchaseOrder(orderRef, { ...order, status: 'accepted' });
+      db.updateUserCredits(order.user_id, order.credits, 'purchase', 'Credit purchase approved: ' + orderRef, order.utr);
+      const newBal = await cloudStore.updateCredits(order.telegram_id, order.credits, 'purchase', 'Credit purchase approved: ' + orderRef, order.utr);
+
+      try {
+        await api('editMessageReplyMarkup', {
+          chat_id: q.message.chat.id,
+          message_id: q.message.message_id,
+          reply_markup: JSON.stringify({
+            inline_keyboard: [[ { text: `✅ ACCEPTED · +${order.credits} Credits Added`, callback_data: 'noop' } ]]
+          })
+        });
+      } catch (_) {}
+
+      // Notify User directly on Telegram
+      if (order.telegram_id) {
+        const userMsg = [
+          '🎉 <b>CREDIT PURCHASE APPROVED!</b>', '',
+          `Your payment for <b>+${order.credits} Credits</b> has been verified and added to your balance!`,
+          `💳 <b>New Credits Balance:</b> ${newBal} Credits`,
+          `<b>Order Ref:</b> <code>${esc(orderRef)}</code>`, '',
+          'You can now use your credits to send Free Fire likes instantly: https://fflike.sbs/free-likes',
+          'Thank you for your purchase! 🚀'
+        ].join('\n');
+        try {
+          await api('sendMessage', { chat_id: order.telegram_id, text: userMsg, parse_mode: 'HTML' });
+        } catch (e) {
+          console.error('[Telegram] Failed to message user on accept:', e.message);
+        }
+      }
+      return answerCallback(q.id, `✅ Added +${order.credits} credits to user!`);
+    }
+
+    if (action === 'reject') {
+      db.updateCreditPurchaseOrder(orderRef, { status: 'rejected', updated_at: new Date().toISOString() });
+      await cloudStore.saveCreditPurchaseOrder(orderRef, { ...order, status: 'rejected' });
+
+      try {
+        await api('editMessageReplyMarkup', {
+          chat_id: q.message.chat.id,
+          message_id: q.message.message_id,
+          reply_markup: JSON.stringify({
+            inline_keyboard: [[ { text: `❌ REJECTED · ${orderRef}`, callback_data: 'noop' } ]]
+          })
+        });
+      } catch (_) {}
+
+      // Notify User with warning on Telegram
+      if (order.telegram_id) {
+        const warnMsg = [
+          '⚠️ <b>CREDIT PURCHASE REJECTED</b>', '',
+          `Your credit purchase request (Ref: <code>${esc(orderRef)}</code>) for <b>${order.credits} Credits</b> was rejected by admin.`,
+          '<b>Reason:</b> Payment UTR / screenshot could not be verified or was not received.', '',
+          'If you have already paid or believe this is an error, please message support: @riyaznx'
+        ].join('\n');
+        try {
+          await api('sendMessage', { chat_id: order.telegram_id, text: warnMsg, parse_mode: 'HTML' });
+        } catch (e) {
+          console.error('[Telegram] Failed to message user on reject:', e.message);
+        }
+      }
+      return answerCallback(q.id, '❌ Order marked as rejected');
+    }
+  }
+
+  // Standard like orders
+  if (parts[0] === 'order') {
+    const action = parts[1], orderId = parts[2];
+    const map = {accept:'processing',reject:'rejected',processing:'processing',completed:'completed'};
+    const status = map[action];
+    if (!status) return answerCallback(q.id,'Invalid action');
+    const orders=readOrders(); const idx=orders.findIndex(o=>o.id===orderId);
+    if(idx<0) return answerCallback(q.id,'Order not found');
+    orders[idx].status=status; orders[idx].updatedAt=new Date().toISOString(); writeOrders(orders);
+    await answerCallback(q.id, status==='processing'?'Order accepted and moved to processing':status==='rejected'?'Order rejected':'Order marked completed');
+    const updated=orders[idx];
+    const statusLabel = {processing:'⚙️ PROCESSING',rejected:'❌ REJECTED',completed:'🏁 COMPLETED'}[status] || status;
+    try {
+      await api('editMessageReplyMarkup',{chat_id:q.message.chat.id,message_id:q.message.message_id,reply_markup:JSON.stringify({inline_keyboard:[[ {text:`${statusLabel} · ${orderId}`,callback_data:'noop'} ]]})});
+    } catch {}
+    try { await api('sendMessage',{chat_id:ADMIN_CHAT_ID,text:`<b>${statusLabel}</b>\nOrder <code>${esc(updated.id)}</code>\nUID <code>${esc(updated.uid)}</code> · ${esc(updated.server)}\nPlan: ${esc(updated.plan)}`,parse_mode:'HTML'}); } catch {}
+  }
+}
+
+async function notifyCreditPurchaseOrder(order) {
+  if (!BOT_TOKEN || !ADMIN_CHAT_ID) return;
+  const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const text = [
+    '💳 <b>NEW CREDIT PURCHASE REQUEST</b>', '',
+    `<b>Order Ref:</b> <code>${esc(order.order_ref)}</code>`,
+    `<b>User:</b> ${esc(order.name || 'User')} ${order.username ? '(@' + esc(order.username) + ')' : ''}`,
+    `<b>Telegram ID:</b> <code>${esc(order.telegram_id)}</code>`,
+    `<b>Credits Requested:</b> <b>+${order.credits} CREDITS</b>`,
+    `<b>Currency:</b> ${esc(order.currency)}`,
+    `<b>Amount:</b> ${esc(order.amount)}`,
+    `<b>${order.currency === 'INR' ? 'UTR Number' : 'Transaction ID'}:</b> <code>${esc(order.utr)}</code>`,
+    `<b>Telegram Contact:</b> ${esc(order.telegram || 'Not provided')}`,
+    `<b>Status:</b> ⏳ Pending Approval`,
+    `<b>Time:</b> ${esc(new Date(order.created_at || Date.now()).toLocaleString('en-IN'))}`
+  ].join('\n');
+
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '✅ ACCEPT / ADD CREDITS', callback_data: `credit:accept:${order.order_ref}` },
+        { text: '❌ REJECT', callback_data: `credit:reject:${order.order_ref}` }
+      ]
+    ]
+  };
+
+  if (order.proof) {
+    const filePath = resolveProofPath(order.proof);
+    if (filePath) {
+      const sendWithToken = async tok => {
+        const form = new FormData();
+        form.append('chat_id', ADMIN_CHAT_ID);
+        form.append('caption', text);
+        form.append('parse_mode', 'HTML');
+        form.append('reply_markup', JSON.stringify(keyboard));
+        form.append('photo', new Blob([fs.readFileSync(filePath)]), path.basename(filePath));
+        const r = await fetch(`https://api.telegram.org/bot${tok}/sendPhoto`, { method: 'POST', body: form });
+        return r.json();
+      };
+      try {
+        let data = await sendWithToken(BOT_TOKEN);
+        if (!data.ok && (data.error_code === 401 || BOT_TOKEN !== NOTIFY_BOT_TOKEN)) {
+          data = await sendWithToken(NOTIFY_BOT_TOKEN);
+        }
+        if (data.ok) return;
+      } catch (_) {}
+    }
+  }
+
   try {
-    await api('editMessageReplyMarkup',{chat_id:q.message.chat.id,message_id:q.message.message_id,reply_markup:JSON.stringify({inline_keyboard:[[ {text:`${statusLabel} · ${orderId}`,callback_data:'noop'} ]]})});
-  } catch {}
-  try { await api('sendMessage',{chat_id:ADMIN_CHAT_ID,text:`<b>${statusLabel}</b>\nOrder <code>${esc(updated.id)}</code>\nUID <code>${esc(updated.uid)}</code> · ${esc(updated.server)}\nPlan: ${esc(updated.plan)}`,parse_mode:'HTML'}); } catch {}
+    await api('sendMessage', { chat_id: ADMIN_CHAT_ID, text, parse_mode: 'HTML', reply_markup: keyboard });
+  } catch (err) {
+    console.error('[Telegram] notifyCreditPurchaseOrder failed:', err.message);
+  }
 }
 
 const pendingAuthTokens = new Map();
@@ -327,6 +466,7 @@ module.exports = {
   notifyAdmin,
   notifyAdminMessage,
   notifyGuildGloryOrder,
+  notifyCreditPurchaseOrder,
   checkChannelMembership,
   processTelegramUpdate,
   createPendingAuthToken,

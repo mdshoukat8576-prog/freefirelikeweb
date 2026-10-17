@@ -178,6 +178,37 @@ async function getCreditOrder(orderId) {
   return await getVal(`ord_${oid}`);
 }
 
+async function saveCreditPurchaseOrder(orderRef, orderData) {
+  const ref = String(orderRef || '').trim();
+  if (!ref) return false;
+  const existing = (await getCreditPurchaseOrder(ref)) || {};
+  const merged = { ...existing, ...orderData, order_ref: ref, updated_at: new Date().toISOString() };
+  await setVal(`cpo_${ref}`, merged);
+
+  if (merged.telegram_id) {
+    try {
+      const list = (await getVal(`cpos_${merged.telegram_id}`)) || [];
+      const idx = list.findIndex(o => o.order_ref === ref);
+      if (idx >= 0) list[idx] = { ...list[idx], ...merged };
+      else list.unshift(merged);
+      await setVal(`cpos_${merged.telegram_id}`, list.slice(0, 30));
+    } catch (_) {}
+  }
+  return true;
+}
+
+async function getCreditPurchaseOrder(orderRef) {
+  const ref = String(orderRef || '').trim();
+  if (!ref) return null;
+  return await getVal(`cpo_${ref}`);
+}
+
+async function getUserCreditPurchaseOrders(telegramId) {
+  const tid = String(telegramId || '').trim();
+  if (!tid) return [];
+  return (await getVal(`cpos_${tid}`)) || [];
+}
+
 module.exports = {
   getUser,
   saveUser,
@@ -187,5 +218,8 @@ module.exports = {
   addLikesHistory,
   getLikesHistory,
   saveCreditOrder,
-  getCreditOrder
+  getCreditOrder,
+  saveCreditPurchaseOrder,
+  getCreditPurchaseOrder,
+  getUserCreditPurchaseOrders
 };

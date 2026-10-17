@@ -11,8 +11,7 @@ const envExPath = path.join(__dirname, '.env.example');
 if (fs.existsSync(envPath)) require('dotenv').config({ path: envPath });
 else if (fs.existsSync(envExPath)) require('dotenv').config({ path: envExPath });
 
-// Modules (load after env)
-const { notifyAdmin, notifyAdminMessage, notifyGuildGloryOrder, checkChannelMembership, processTelegramUpdate, createPendingAuthToken, getPendingAuthToken, consumePendingAuthToken } = require('./bot');
+const { notifyAdmin, notifyAdminMessage, notifyGuildGloryOrder, notifyCreditPurchaseOrder, checkChannelMembership, processTelegramUpdate, createPendingAuthToken, getPendingAuthToken, consumePendingAuthToken } = require('./bot');
 const db = require('./db');
 const cloudStore = require('./cloudStore');
 const { authMiddleware, optionalAuth, verifyTelegramLogin, setSessionCookie, clearSessionCookie, verifyLoginToken } = require('./auth');
@@ -73,8 +72,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Raw body for Razorpay webhook
-app.use('/api/webhooks/razorpay', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '200kb' }));
 app.use(express.urlencoded({ extended: true, limit: '200kb' }));
 app.use(cookieParser());
@@ -499,287 +496,106 @@ app.get('/api/likes/history', authMiddleware, async (req, res) => {
   } catch (_) { res.status(500).json({ error: 'Failed' }); }
 });
 
-const RZP_KEY_ID = process.env.RAZORPAY_KEY_ID || 'rzp_live_TjLssaMvrhNiaM';
-const RZP_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || 'm4QvtUZQ3nz417MqTN2X3t6d';
-
-// ── Credits / Razorpay ────────────────────────────────────────────────────────
-app.post('/api/credits/order', authMiddleware, async (req, res) => {
+// ── Credits Purchase (Manual UPI & USDT with Admin Verification) ─────────────
+app.post('/api/credits/buy', authMiddleware, upload.single('proof'), async (req, res) => {
   try {
     await db.initDb();
     const credits = parseInt(req.body.credits, 10);
-    if (!credits || credits < 1 || credits > 1000) return res.status(400).json({ error: 'Credits must be 1–1000' });
-    const amountPaise = credits * 500;
-
-    if (!RZP_KEY_ID || !RZP_KEY_SECRET)
-      return res.json({ error: 'Payment not configured', setup: true });
-
-    const Razorpay = require('razorpay');
-    const rzp = new Razorpay({ key_id: RZP_KEY_ID, key_secret: RZP_KEY_SECRET });
-    const rzpOrder = await rzp.orders.create({ amount: amountPaise, currency: 'INR', receipt: `cr_${req.userId}_${Date.now()}` });
-    
-    let paymentLinkUrl = null;
-    let paymentLinkId = null;
-    try {
-      const plink = await rzp.paymentLink.create({
-        amount: amountPaise,
-        currency: 'INR',
-        accept_partial: false,
-        description: `${credits} FFLike Credits`,
-        notes: {
-          user_id: String(req.userId),
-          telegram_id: String(req.userTid || ''),
-          order_id: rzpOrder.id,
-          credits: String(credits)
-        },
-        notify: { sms: false, email: false },
-        reminder_enable: false,
-        callback_url: `${req.protocol}://${req.get('host')}/free-likes.html?payment=done&order_id=${rzpOrder.id}`,
-        callback_method: 'get'
-      });
-      if (plink && plink.short_url) {
-        paymentLinkUrl = plink.short_url;
-        paymentLinkId = plink.id;
-      }
-    } catch (plErr) {
-      console.warn('[Credits Order] Payment link note:', plErr.message);
+    if (!credits || credits < 1 || credits > 10000) {
+      if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+      return res.status(400).json({ error: 'Please enter valid credits quantity (1–10000)' });
+    }
+    const currency = String(req.body.currency || 'INR').toUpperCase();
+    if (!['INR', 'USDT'].includes(currency)) {
+      if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+      return res.status(400).json({ error: 'Currency must be INR or USDT' });
+    }
+    const utr = String(req.body.utr || '').trim().slice(0, 64);
+    if (!utr) {
+      if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+      return res.status(400).json({ error: currency === 'INR' ? 'UTR / Ref number is required' : 'Transaction ID / Hash is required' });
     }
 
-    db.createCreditOrder({ user_id: req.userId, razorpay_order_id: rzpOrder.id, credits, amount_paise: amountPaise });
-    await cloudStore.saveCreditOrder(rzpOrder.id, {
-      user_id: req.userId,
-      telegram_id: req.userTid,
-      order_id: rzpOrder.id,
-      payment_link_id: paymentLinkId,
+    let user = db.getUserById(req.userId);
+    if (!user && req.userTid) user = await db.syncUserFromCloud(req.userTid);
+    if (!user) {
+      if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Pricing: 1 credit = ₹5 INR, 1 credit = $1 USDT
+    const amountStr = currency === 'INR' ? `₹${credits * 5}` : `$${credits * 1} USDT`;
+    const orderRef = `CR-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    const telegramContact = String(req.body.telegram || (user.username ? '@' + user.username : user.name || '')).trim().slice(0, 64);
+
+    let proofRelPath = '';
+    if (req.file) {
+      const ext = req.file.mimetype === 'image/png' ? '.png' : req.file.mimetype === 'image/webp' ? '.webp' : '.jpg';
+      const finalName = `CR-${orderRef}${ext}`;
+      const finalPath = path.join(proofDir, finalName);
+      try {
+        fs.renameSync(req.file.path, finalPath);
+        proofRelPath = path.join('data', 'proofs', finalName);
+      } catch (e) {
+        console.warn('[Credits Buy] Rename proof error:', e.message);
+      }
+    }
+
+    const orderData = {
+      order_ref: orderRef,
+      user_id: user.id,
+      telegram_id: String(user.telegram_id || req.userTid || ''),
+      name: user.name || 'User',
+      username: user.username || '',
       credits,
-      amount_paise: amountPaise,
-      status: 'created'
-    });
+      currency,
+      amount: amountStr,
+      utr,
+      telegram: telegramContact,
+      proof: proofRelPath,
+      status: 'pending',
+      created_at: new Date().toISOString()
+    };
+
+    const createdOrder = db.createCreditPurchaseOrder(orderData);
+    await cloudStore.saveCreditPurchaseOrder(orderRef, orderData);
+
+    // Notify Telegram Admin with Accept & Reject buttons
+    try {
+      await notifyCreditPurchaseOrder(orderData);
+    } catch (err) {
+      console.error('[Credits Buy Notify]', err.message);
+    }
 
     res.json({
       ok: true,
-      orderId: rzpOrder.id,
-      paymentLinkId,
-      paymentLinkUrl,
-      amount: amountPaise,
-      currency: 'INR',
-      credits,
-      keyId: RZP_KEY_ID
+      message: 'Payment verification submitted! Admin will verify and add credits to your account shortly.',
+      order: createdOrder || orderData
     });
   } catch (e) {
-    console.error('[Credits]', e.message);
-    res.status(500).json({ error: 'Failed to create payment order: ' + e.message });
+    console.error('[Credits Buy]', e.message);
+    res.status(500).json({ error: 'Failed to submit order: ' + e.message });
   }
 });
 
-app.post('/api/credits/verify', authMiddleware, async (req, res) => {
+app.get('/api/credits/orders', authMiddleware, async (req, res) => {
   try {
     await db.initDb();
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature)
-      return res.status(400).json({ error: 'Missing fields' });
-    const secret = RZP_KEY_SECRET;
-    if (!secret) return res.status(503).json({ error: 'Payment not configured' });
-    const expected = crypto.createHmac('sha256', secret).update(`${razorpay_order_id}|${razorpay_payment_id}`).digest('hex');
-    if (expected !== razorpay_signature) return res.status(400).json({ error: 'Invalid signature' });
-
-    let order = db.getCreditOrder(razorpay_order_id) || await cloudStore.getCreditOrder(razorpay_order_id);
-    if (!order) return res.status(404).json({ error: 'Order not found' });
-    if (order.user_id && order.user_id !== req.userId) return res.status(403).json({ error: 'Forbidden' });
-    if (order.fulfilled) return res.json({ ok: true, credits: db.getUserById(req.userId).credits, already: true });
-
-    db.fulfillCreditOrder(razorpay_order_id, razorpay_payment_id);
-    const newBal = db.updateUserCredits(req.userId, order.credits, 'purchase', 'Razorpay credit purchase', razorpay_payment_id);
-    let u = db.getUserById(req.userId);
-    if (u && u.telegram_id) {
-      await cloudStore.updateCredits(u.telegram_id, order.credits, 'purchase', 'Razorpay credit purchase', razorpay_payment_id);
+    let localOrders = db.getCreditPurchaseOrders(req.userId);
+    if (!localOrders || localOrders.length === 0) {
+      if (req.userTid) {
+        localOrders = db.getCreditPurchaseOrdersByTid(req.userTid);
+      }
     }
-
-    // Notify Telegram Admin
-    try {
-      const text = [
-        '💳 <b>NEW CREDIT PURCHASE (RAZORPAY MODAL)</b>', '',
-        `<b>User:</b> ${esc(u?.name || 'User')} ${u?.username ? '(@' + esc(u.username) + ')' : ''}`,
-        `<b>Telegram ID:</b> <code>${esc(u?.telegram_id || 'N/A')}</code>`,
-        `<b>Credits Added:</b> +${order.credits}`,
-        `<b>Amount Paid:</b> ₹${order.amount_paise / 100}`,
-        `<b>New Balance:</b> ${newBal} credits`,
-        `<b>Payment ID:</b> <code>${esc(razorpay_payment_id)}</code>`,
-        `<b>Order ID:</b> <code>${esc(razorpay_order_id)}</code>`,
-        `<b>Time:</b> ${esc(new Date().toLocaleString('en-IN'))}`
-      ].join('\n');
-      notifyAdminMessage(text);
-    } catch (_) {}
-
-    res.json({ ok: true, credits: newBal });
+    // Also merge from cloud store if SQLite empty
+    if ((!localOrders || localOrders.length === 0) && req.userTid) {
+      const cloudOrders = await cloudStore.getUserCreditPurchaseOrders(req.userTid);
+      return res.json({ ok: true, orders: cloudOrders || [] });
+    }
+    res.json({ ok: true, orders: localOrders || [] });
   } catch (e) {
-    console.error('[Credits verify]', e.message);
-    res.status(500).json({ error: 'Verification failed: ' + e.message });
+    res.status(500).json({ error: 'Failed to fetch credit orders' });
   }
-});
-
-app.post('/api/credits/verify-link', authMiddleware, async (req, res) => {
-  try {
-    await db.initDb();
-    const { paymentLinkId, orderId } = req.body || {};
-    if (!orderId && !paymentLinkId) return res.status(400).json({ error: 'Order ID or Payment Link ID required' });
-
-    const Razorpay = require('razorpay');
-    const rzp = new Razorpay({ key_id: RZP_KEY_ID, key_secret: RZP_KEY_SECRET });
-
-    let isPaid = false;
-    let paymentId = '';
-    let credits = 0;
-    let order = orderId ? (db.getCreditOrder(orderId) || await cloudStore.getCreditOrder(orderId)) : null;
-
-    if (order && order.fulfilled) {
-      let u = db.getUserById(req.userId);
-      if (!u && req.userTid) u = await db.syncUserFromCloud(req.userTid);
-      return res.json({ ok: true, credits: u?.credits || 0, already: true });
-    }
-
-    // 1. Check order payments in Razorpay
-    if (orderId) {
-      try {
-        const orderPayments = await rzp.orders.fetchPayments(orderId);
-        const captured = (orderPayments.items || []).find(p => p.status === 'captured');
-        if (captured) {
-          isPaid = true;
-          paymentId = captured.id;
-          credits = order ? order.credits : Math.round(captured.amount / 500);
-        }
-      } catch (e) {
-        console.warn('[Verify Link] orderPayments check note:', e.message);
-      }
-    }
-
-    // 2. Check payment link status in Razorpay
-    if (!isPaid && paymentLinkId) {
-      try {
-        const plink = await rzp.paymentLink.fetch(paymentLinkId);
-        if (plink && (plink.status === 'paid' || plink.amount_paid >= plink.amount)) {
-          isPaid = true;
-          paymentId = plink.payments?.[0]?.payment_id || `plink_${paymentLinkId}`;
-          credits = parseInt(plink.notes?.credits, 10) || (order ? order.credits : Math.round(plink.amount / 500));
-        }
-      } catch (e) {
-        console.warn('[Verify Link] paymentLink check note:', e.message);
-      }
-    }
-
-    if (isPaid) {
-      let user = db.getUserById(req.userId);
-      if (!user && req.userTid) user = await db.syncUserFromCloud(req.userTid);
-      if (orderId) db.fulfillCreditOrder(orderId, paymentId);
-      const newBal = db.updateUserCredits(req.userId, credits, 'purchase', 'Razorpay verified', paymentId);
-      if (user && user.telegram_id) {
-        await cloudStore.updateCredits(user.telegram_id, credits, 'purchase', 'Razorpay verified', paymentId);
-      }
-
-      // Notify Telegram Admin
-      try {
-        const text = [
-          '💳 <b>NEW CREDIT PURCHASE (RAZORPAY LINK / DIRECT)</b>', '',
-          `<b>User:</b> ${esc(user?.name || 'User')} ${user?.username ? '(@' + esc(user.username) + ')' : ''}`,
-          `<b>Telegram ID:</b> <code>${esc(user?.telegram_id || 'N/A')}</code>`,
-          `<b>Credits Added:</b> +${credits}`,
-          `<b>New Balance:</b> ${newBal} credits`,
-          `<b>Payment ID:</b> <code>${esc(paymentId)}</code>`,
-          `<b>Order ID:</b> <code>${esc(orderId || paymentLinkId)}</code>`,
-          `<b>Time:</b> ${esc(new Date().toLocaleString('en-IN'))}`
-        ].join('\n');
-        notifyAdminMessage(text);
-      } catch (_) {}
-
-      return res.json({ ok: true, credits: newBal, message: `${credits} credits added successfully!` });
-    }
-
-    res.json({ ok: false, message: 'Payment not detected yet. If you completed payment, wait a few seconds and try again.' });
-  } catch (e) {
-    console.error('[Credits verify-link]', e.message);
-    res.status(500).json({ error: 'Verification failed: ' + e.message });
-  }
-});
-
-app.get('/api/credits/check-status', authMiddleware, async (req, res) => {
-  try {
-    const { orderId, paymentLinkId } = req.query || {};
-    if (!orderId && !paymentLinkId) return res.status(400).json({ error: 'Missing ID' });
-    const Razorpay = require('razorpay');
-    const rzp = new Razorpay({ key_id: RZP_KEY_ID, key_secret: RZP_KEY_SECRET });
-    
-    let isPaid = false;
-    let paymentId = '';
-    let credits = 0;
-    let order = orderId ? db.getCreditOrder(orderId) : null;
-    if (order && order.fulfilled) {
-      const u = db.getUserById(req.userId);
-      return res.json({ isPaid: true, credits: u?.credits || 0 });
-    }
-
-    if (orderId) {
-      try {
-        const orderPayments = await rzp.orders.fetchPayments(orderId);
-        const captured = (orderPayments.items || []).find(p => p.status === 'captured');
-        if (captured) {
-          isPaid = true;
-          paymentId = captured.id;
-          credits = order ? order.credits : Math.round(captured.amount / 500);
-        }
-      } catch (_) {}
-    }
-
-    if (!isPaid && paymentLinkId) {
-      try {
-        const plink = await rzp.paymentLink.fetch(paymentLinkId);
-        if (plink && (plink.status === 'paid' || plink.amount_paid >= plink.amount)) {
-          isPaid = true;
-          paymentId = plink.payments?.[0]?.payment_id || `plink_${paymentLinkId}`;
-          credits = parseInt(plink.notes?.credits, 10) || (order ? order.credits : Math.round(plink.amount / 500));
-        }
-      } catch (_) {}
-    }
-
-    if (isPaid) {
-      if (orderId) db.fulfillCreditOrder(orderId, paymentId);
-      const newBal = db.updateUserCredits(req.userId, credits, 'purchase', 'Razorpay auto-poll', paymentId);
-      const user = db.getUserById(req.userId);
-      if (user && user.telegram_id) {
-        await cloudStore.updateCredits(user.telegram_id, credits, 'purchase', 'Razorpay auto-poll', paymentId);
-      }
-      return res.json({ isPaid: true, credits: newBal });
-    }
-
-    res.json({ isPaid: false });
-  } catch (e) {
-    res.json({ isPaid: false });
-  }
-});
-
-app.post('/api/webhooks/razorpay', async (req, res) => {
-  try {
-    await db.initDb();
-    const webhookSec = process.env.RAZORPAY_WEBHOOK_SECRET;
-    if (webhookSec) {
-      const sig = req.headers['x-razorpay-signature'];
-      const exp = crypto.createHmac('sha256', webhookSec).update(req.body).digest('hex');
-      if (sig !== exp) return res.status(400).json({ error: 'Invalid signature' });
-    }
-    const payload = JSON.parse(req.body.toString());
-    const eventId = payload.id || `evt_${Date.now()}`;
-    if (db.isWebhookProcessed(eventId)) return res.json({ ok: true, skipped: true });
-    db.markWebhookProcessed(eventId);
-    if (payload.event === 'payment.captured') {
-      const payment = payload.payload?.payment?.entity;
-      if (payment) {
-        const order = db.getCreditOrder(payment.order_id);
-        if (order && !order.fulfilled) {
-          db.fulfillCreditOrder(payment.order_id, payment.id);
-          db.updateUserCredits(order.user_id, order.credits, 'purchase', 'Razorpay webhook', payment.id);
-        }
-      }
-    }
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: 'Webhook failed' }); }
 });
 
 // ── Guild Glory ───────────────────────────────────────────────────────────────
