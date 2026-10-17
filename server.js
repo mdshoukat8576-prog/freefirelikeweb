@@ -56,7 +56,7 @@ app.use((req, res, next) => {
     normalized.startsWith('/.env') ||
     normalized === '/package.json' ||
     normalized === '/package-lock.json' ||
-    normalized === '/server.js' ||
+    (!process.env.VERCEL && normalized === '/server.js') ||
     normalized === '/bot.js' ||
     normalized === '/data/orders.json' ||
     normalized.startsWith('/.git')

@@ -1,11 +1,6 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "functions": {
-    "server.js": {
-      "includeFiles": "{*.html,*.css,*.js,assets/**,blog/**,data/**,sitemap.xml,robots.txt,site.webmanifest,favicon.ico}"
-    }
-  },
   "redirects": [
     {
       "source": "/index.html",
@@ -26,10 +21,6 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/server.js"
-    },
-    {
-      "source": "/(.*)",
       "destination": "/server.js"
     }
   ]
