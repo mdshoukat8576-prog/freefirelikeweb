@@ -223,6 +223,21 @@
               <input id="ggGuildUid" name="guild_uid" required inputmode="numeric" placeholder="Enter your in-game Guild UID">
             </div>
             <div class="field">
+              <label for="ggRegion">Free Fire Server / Region <span style="color:#ef4444">*</span></label>
+              <select id="ggRegion" name="region" required style="width:100%;height:46px;background:var(--bg);border:1px solid var(--line);border-radius:12px;color:var(--text);padding:0 14px;font-family:inherit;font-size:14px">
+                <option value="IND" selected>🇮🇳 India (IND)</option>
+                <option value="BD">🇧🇩 Bangladesh (BD)</option>
+                <option value="SG">🇸🇬 Singapore (SG)</option>
+                <option value="PK">🇵🇰 Pakistan (PK)</option>
+                <option value="ID">🇮🇩 Indonesia (ID)</option>
+                <option value="BR">🇧🇷 Brazil (BR)</option>
+                <option value="ME">🇸🇦 Middle East (MENA)</option>
+                <option value="EU">🇪🇺 Europe (EU)</option>
+                <option value="NA">🇺🇸 North America (NA)</option>
+                <option value="OTHER">🌐 Other / Global</option>
+              </select>
+            </div>
+            <div class="field">
               <label for="ggUtr" id="labelUtr">UTR / Transaction Reference <span style="color:#ef4444">*</span></label>
               <input id="ggUtr" name="utr" required placeholder="Enter 12-digit UTR / reference" maxlength="64">
             </div>
@@ -322,6 +337,7 @@ document.getElementById('ggOrderForm').addEventListener('submit', async function
   e.preventDefault();
   const guildUid = document.getElementById('ggGuildUid').value.trim();
   if (!guildUid) { alert('Please enter your Guild UID'); return; }
+  const region = document.getElementById('ggRegion').value;
   const currency = document.getElementById('ggCurrency').value;
   const paymentRef = document.getElementById('ggUtr').value.trim();
   if (!paymentRef) { alert(currency === 'INR' ? 'Please enter UTR number' : 'Please enter Binance Txn/Order ID'); return; }
@@ -341,6 +357,7 @@ document.getElementById('ggOrderForm').addEventListener('submit', async function
         packageKey: pkgKey,
         currency: currency,
         guild_uid: guildUid,
+        region: region,
         utr: paymentRef,
         telegram: telegramHandle
       })
@@ -372,6 +389,7 @@ document.getElementById('ggOrderForm').addEventListener('submit', async function
       `Amount: ${out.order.amount}\n` +
       `Currency: ${out.order.currency}\n` +
       `Guild UID: ${guildUid}\n` +
+      `Region/Server: ${region}\n` +
       `UTR: ${paymentRef}\n` +
       `Telegram: ${telegramHandle || 'Not provided'}\n\n` +
       `Payment proof has been recorded on the website. I am attaching the confirmation here for verification.`

@@ -252,6 +252,7 @@ window.onTelegramAuth = function(tgUser) {
   }).then(r => r.json()).then(data => {
     if (data.ok) {
       localStorage.removeItem('ff_ref');
+      try { localStorage.setItem('ff_user_data', JSON.stringify(data.user)); } catch (_) {}
       if (typeof window.setFlUser === 'function') window.setFlUser(data.user);
       else location.reload();
     } else {
@@ -355,6 +356,7 @@ function startTgConnect() {
 
   window.logoutAccount = async function() {
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (_) {}
+    try { localStorage.removeItem('ff_user_data'); } catch (_) {}
     user = null;
     renderState();
   };
@@ -583,8 +585,19 @@ function startTgConnect() {
     try {
       const r = await fetch('/api/auth/me');
       const data = await r.json();
-      if (data.user) user = data.user;
-    } catch (_) {}
+      const me = data.user || (data.id ? data : null);
+      if (me) {
+        user = me;
+        try { localStorage.setItem('ff_user_data', JSON.stringify(me)); } catch (_) {}
+      } else {
+        try { localStorage.removeItem('ff_user_data'); } catch (_) {}
+      }
+    } catch (_) {
+      try {
+        const cached = localStorage.getItem('ff_user_data');
+        if (cached) user = JSON.parse(cached);
+      } catch (_) {}
+    }
     renderState();
   }
 

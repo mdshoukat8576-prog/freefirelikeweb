@@ -109,12 +109,13 @@ function createSchema() {
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER,
     order_ref TEXT UNIQUE NOT NULL, package_key TEXT NOT NULL,
     package_name TEXT NOT NULL, currency TEXT NOT NULL, amount TEXT NOT NULL,
-    guild_uid TEXT,
+    guild_uid TEXT, region TEXT,
     payment_status TEXT DEFAULT 'pending', fulfillment_status TEXT DEFAULT 'awaiting_payment',
     utr TEXT, telegram TEXT, proof TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   )`);
   try { db.run(`ALTER TABLE guild_glory_orders ADD COLUMN guild_uid TEXT`); } catch (_) {}
+  try { db.run(`ALTER TABLE guild_glory_orders ADD COLUMN region TEXT`); } catch (_) {}
   db.run(`CREATE TABLE IF NOT EXISTS webhook_events (
     event_id TEXT PRIMARY KEY,
     processed_at TEXT DEFAULT (datetime('now'))
@@ -236,12 +237,12 @@ function getGuildGloryOrderByRef(ref) {
   return dbGet('SELECT * FROM guild_glory_orders WHERE order_ref=?', [ref]);
 }
 function createGuildGloryOrder(d) {
-  dbRun('INSERT INTO guild_glory_orders(user_id,order_ref,package_key,package_name,currency,amount,guild_uid,utr,telegram) VALUES(?,?,?,?,?,?,?,?,?)',
-    [d.user_id||null, d.order_ref, d.package_key, d.package_name, d.currency, d.amount, d.guild_uid||'', d.utr||'', d.telegram||'']);
+  dbRun('INSERT INTO guild_glory_orders(user_id,order_ref,package_key,package_name,currency,amount,guild_uid,region,utr,telegram) VALUES(?,?,?,?,?,?,?,?,?,?)',
+    [d.user_id||null, d.order_ref, d.package_key, d.package_name, d.currency, d.amount, d.guild_uid||'', d.region||'IND', d.utr||'', d.telegram||'']);
   return getGuildGloryOrderByRef(d.order_ref);
 }
 function updateGuildGloryOrder(orderRef, fields) {
-  const allowed = ['payment_status','fulfillment_status','utr','proof','guild_uid'];
+  const allowed = ['payment_status','fulfillment_status','utr','proof','guild_uid','region'];
   const keys = Object.keys(fields).filter(k => allowed.includes(k));
   if (!keys.length) return;
   const sets = keys.map(k => `${k}=?`).join(',');

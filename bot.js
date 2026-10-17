@@ -2,27 +2,49 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const BOT_TOKEN = process.env.BOT_TOKEN || '8430101695:AAGx_Et9LWDBtKIFiwDBxjxnRrjaiZVitdM';
-const ADMIN_CHAT_ID = String(process.env.ADMIN_CHAT_ID || '7932057377').trim();
-const BOT_POLL_MS = Number(process.env.BOT_POLL_MS || 1000);
-const ordersFile = path.join(__dirname, 'data', 'orders.json');
-const proofDir = path.join(__dirname, 'data', 'proofs');
+const NOTIFY_BOT_TOKEN = '8430101695:AAGx_Et9LWDBtKIFiwDBxjxnRrjaiZVitdM';
+const LOGIN_BOT_TOKEN  = '8994422473:AAG8iknKl0eK41Lf9V0gYa7qB9eW3QmPlOE';
+const DEFAULT_ADMIN_ID = '7932057377';
 
-if (!BOT_TOKEN || !ADMIN_CHAT_ID) {
-  console.warn('[Telegram] DISABLED: BOT_TOKEN or ADMIN_CHAT_ID is missing. Check .env in the same folder as server.js.');
-} else {
-  console.log(`[Telegram] Config loaded. Admin chat: ${ADMIN_CHAT_ID}`);
+function getBotToken() {
+  const t = (process.env.BOT_TOKEN || '').trim();
+  // Reject stale / known unauthorized tokens from previous commits
+  if (!t || t.startsWith('8979787188') || t.startsWith('8423545031') || t.startsWith('8829167111')) {
+    return NOTIFY_BOT_TOKEN;
+  }
+  return t;
 }
 
-const api = (method, body) => fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${method}`, {
-  method: 'POST',
-  headers: {'content-type':'application/json'},
-  body: JSON.stringify(body)
-}).then(async r => {
+const BOT_TOKEN = getBotToken();
+const ADMIN_CHAT_ID = String(process.env.ADMIN_CHAT_ID || DEFAULT_ADMIN_ID).trim();
+const BOT_POLL_MS = Number(process.env.BOT_POLL_MS || 1000);
+
+const isVercel = Boolean(process.env.VERCEL);
+const dataDir = isVercel ? '/tmp/data' : path.join(__dirname, 'data');
+const ordersFile = path.join(dataDir, 'orders.json');
+const proofDir = path.join(dataDir, 'proofs');
+try { fs.mkdirSync(dataDir, { recursive: true }); } catch (_) {}
+try { fs.mkdirSync(proofDir, { recursive: true }); } catch (_) {}
+
+console.log(`[Telegram] Bot active: ${BOT_TOKEN.slice(0, 10)}... Admin chat: ${ADMIN_CHAT_ID}`);
+
+const api = async (method, body, tokenOverride = null) => {
+  const token = tokenOverride || BOT_TOKEN;
+  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+    method: 'POST',
+    headers: {'content-type':'application/json'},
+    body: JSON.stringify(body)
+  });
   const data = await r.json();
-  if (!data.ok) throw new Error(data.description || `Telegram ${method} failed`);
+  if (!data.ok) {
+    if ((data.error_code === 401 || r.status === 401) && token !== NOTIFY_BOT_TOKEN) {
+      console.warn(`[Telegram] ${method} got 401 with token, retrying with NOTIFY_BOT_TOKEN`);
+      return api(method, body, NOTIFY_BOT_TOKEN);
+    }
+    throw new Error(data.description || `Telegram ${method} failed`);
+  }
   return data.result;
-});
+};
 
 function resolveProofPath(proof) {
   if (!proof) return null;
@@ -30,6 +52,7 @@ function resolveProofPath(proof) {
   const candidates = [
     proof,
     path.join(__dirname, proof.replace(/^\/?data[\\/]?/, 'data/')),
+    path.join(dataDir, 'proofs', filename),
     path.join('/tmp/data/proofs', filename),
     path.join(__dirname, 'data', 'proofs', filename)
   ];
@@ -39,8 +62,23 @@ function resolveProofPath(proof) {
   return null;
 }
 
-function readOrders(){ try { return JSON.parse(fs.readFileSync(ordersFile,'utf8')); } catch { return []; } }
-function writeOrders(list){ fs.writeFileSync(ordersFile, JSON.stringify(list, null, 2)); }
+function readOrders() {
+  try {
+    if (fs.existsSync(ordersFile)) return JSON.parse(fs.readFileSync(ordersFile, 'utf8'));
+    const seed = path.join(__dirname, 'data', 'orders.json');
+    if (fs.existsSync(seed)) return JSON.parse(fs.readFileSync(seed, 'utf8'));
+    return [];
+  } catch {
+    return [];
+  }
+}
+function writeOrders(list) {
+  try {
+    fs.writeFileSync(ordersFile, JSON.stringify(list, null, 2));
+  } catch (e) {
+    console.error('[Orders] writeOrders error:', e.message);
+  }
+}
 function esc(s){return String(s ?? '').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function orderById(id){ return readOrders().find(o=>o.id===id); }
 
@@ -69,18 +107,28 @@ async function notifyAdmin(order){
   if (order.proof) {
     const filePath = resolveProofPath(order.proof);
     if (filePath) {
-      try {
+      const sendWithToken = async (tok) => {
         const form = new FormData();
         form.append('chat_id', ADMIN_CHAT_ID);
         form.append('caption', text);
         form.append('parse_mode', 'HTML');
         form.append('reply_markup', JSON.stringify(keyboard));
         form.append('photo', new Blob([fs.readFileSync(filePath)]), path.basename(filePath));
-        const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {method:'POST', body:form});
-        const data = await r.json();
+        const r = await fetch(`https://api.telegram.org/bot${tok}/sendPhoto`, {method:'POST', body:form});
+        return r.json();
+      };
+      try {
+        let data = await sendWithToken(BOT_TOKEN);
+        if (!data.ok && (data.error_code === 401 || BOT_TOKEN !== NOTIFY_BOT_TOKEN)) {
+          data = await sendWithToken(NOTIFY_BOT_TOKEN);
+        }
         if (data.ok) return;
         console.error('[Telegram] notifyAdmin sendPhoto failed:', data.description);
       } catch (err) {
+        try {
+          const retryData = await sendWithToken(NOTIFY_BOT_TOKEN);
+          if (retryData.ok) return;
+        } catch (_) {}
         console.error('[Telegram] notifyAdmin sendPhoto exception:', err.message);
       }
     }
@@ -287,18 +335,30 @@ module.exports = {
 start();
 
 async function checkChannelMembership(telegramId, channelUsername) {
-  if (!BOT_TOKEN) return false;
-  try {
-    const channel = channelUsername.startsWith('@') ? channelUsername : `@${channelUsername}`;
-    const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getChatMember?chat_id=${encodeURIComponent(channel)}&user_id=${encodeURIComponent(telegramId)}`);
-    const data = await r.json();
-    if (!data.ok) return false;
-    const status = data.result && data.result.status;
-    return ['member', 'administrator', 'creator', 'restricted'].includes(status);
-  } catch (e) {
-    console.error('[Telegram] checkChannelMembership error:', e.message);
-    return false;
+  const channel = channelUsername.startsWith('@') ? channelUsername : `@${channelUsername}`;
+  const tokensToTry = [
+    NOTIFY_BOT_TOKEN,
+    LOGIN_BOT_TOKEN,
+    BOT_TOKEN,
+    process.env.LOGIN_BOT_TOKEN
+  ].filter(Boolean);
+
+  for (const token of tokensToTry) {
+    try {
+      const url = `https://api.telegram.org/bot${token}/getChatMember?chat_id=${encodeURIComponent(channel)}&user_id=${encodeURIComponent(telegramId)}`;
+      const r = await fetch(url);
+      const data = await r.json();
+      if (data.ok && data.result) {
+        const status = data.result.status;
+        if (['member', 'administrator', 'creator', 'restricted'].includes(status)) {
+          return true;
+        }
+      }
+    } catch (e) {
+      console.error(`[Telegram] checkChannelMembership (${channel}) error:`, e.message);
+    }
   }
+  return false;
 }
 
 async function notifyGuildGloryOrder(order) {
@@ -311,6 +371,7 @@ async function notifyGuildGloryOrder(order) {
     `<b>Currency:</b> ${esc2(order.currency)}`,
     `<b>Amount:</b> ${esc2(order.amount)}`,
     `<b>Guild UID:</b> <code>${esc2(order.guild_uid || 'Not provided')}</code>`,
+    `<b>Server/Region:</b> <code>${esc2(order.region || 'India (IND)')}</code>`,
     `<b>${order.currency === 'INR' ? 'UTR' : 'Txn/Order ID'}:</b> <code>${esc2(order.utr || 'Not provided')}</code>`,
     `<b>Telegram:</b> ${esc2(order.telegram || 'Not provided')}`,
     `<b>Status:</b> ${esc2(order.payment_status || 'pending')}`,
@@ -320,17 +381,27 @@ async function notifyGuildGloryOrder(order) {
   if (order.proof) {
     const filePath = resolveProofPath(order.proof);
     if (filePath) {
-      try {
+      const sendWithToken = async (tok) => {
         const form = new FormData();
         form.append('chat_id', ADMIN_CHAT_ID);
         form.append('caption', text);
         form.append('parse_mode', 'HTML');
         form.append('photo', new Blob([fs.readFileSync(filePath)]), path.basename(filePath));
-        const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {method:'POST', body:form});
-        const data = await r.json();
+        const r = await fetch(`https://api.telegram.org/bot${tok}/sendPhoto`, {method:'POST', body:form});
+        return r.json();
+      };
+      try {
+        let data = await sendWithToken(BOT_TOKEN);
+        if (!data.ok && (data.error_code === 401 || BOT_TOKEN !== NOTIFY_BOT_TOKEN)) {
+          data = await sendWithToken(NOTIFY_BOT_TOKEN);
+        }
         if (data.ok) return;
         console.error('[Telegram] notifyGuildGloryOrder sendPhoto failed:', data.description);
       } catch (err) {
+        try {
+          const retryData = await sendWithToken(NOTIFY_BOT_TOKEN);
+          if (retryData.ok) return;
+        } catch (_) {}
         console.error('[Telegram] notifyGuildGloryOrder photo send failed:', err.message);
       }
     }

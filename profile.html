@@ -328,7 +328,8 @@ async function doLogout() {
 async function init() {
   try {
     const r = await fetch('/api/auth/me');
-    const data = await r.json();
+    const resData = await r.json();
+    const data = resData.user || resData;
     if (!data || !data.id) {
       document.getElementById('notLoggedBox').style.display = 'block';
       return;

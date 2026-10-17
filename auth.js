@@ -5,17 +5,20 @@
 const crypto = require('crypto');
 const jwt    = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+const JWT_SECRET = process.env.JWT_SECRET || 'fflike-jwt-secret-stable-key-2026-v2-production';
 const COOKIE_NAME = 'ff_session';
 const COOKIE_OPTS = {
   httpOnly: true,
   sameSite: 'lax',
   secure: Boolean(process.env.VERCEL), // HTTPS only on Vercel
-  maxAge: 7 * 24 * 60 * 60 * 1000     // 7 days
+  maxAge: 30 * 24 * 60 * 60 * 1000     // 30 days
 };
 
-function signToken(userId) {
-  return jwt.sign({ uid: userId }, JWT_SECRET, { expiresIn: '7d' });
+function signToken(user) {
+  const payload = (typeof user === 'object' && user !== null)
+    ? { uid: user.id, tid: String(user.telegram_id || ''), name: user.name || '', username: user.username || '' }
+    : { uid: user };
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 }
 
 function verifyToken(token) {
@@ -89,6 +92,9 @@ function authMiddleware(req, res, next) {
   const payload = verifyToken(token);
   if (!payload) return res.status(401).json({ error: 'Session expired' });
   req.userId = payload.uid;
+  req.userTid = payload.tid;
+  req.userName = payload.name;
+  req.userUsername = payload.username;
   next();
 }
 
@@ -97,7 +103,12 @@ function optionalAuth(req, res, next) {
   const token = req.cookies && req.cookies[COOKIE_NAME];
   if (token) {
     const payload = verifyToken(token);
-    if (payload) req.userId = payload.uid;
+    if (payload) {
+      req.userId = payload.uid;
+      req.userTid = payload.tid;
+      req.userName = payload.name;
+      req.userUsername = payload.username;
+    }
   }
   next();
 }
@@ -116,6 +127,8 @@ module.exports = {
   optionalAuth,
   setSessionCookie,
   clearSessionCookie,
+  signToken,
+  verifyToken,
   signLoginToken,
   verifyLoginToken
 };
