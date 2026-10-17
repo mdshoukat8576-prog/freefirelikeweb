@@ -22,7 +22,7 @@ const { notifyAdmin } = require('./bot');
 
 const app = express();
 const REQUESTED_PORT = Number(process.env.PORT || 3000);
-const publicDir = process.env.VERCEL ? process.cwd() : path.join(__dirname);
+const publicDir = path.join(__dirname);
 const isVercel = Boolean(process.env.VERCEL);
 const dataDir = isVercel ? path.join('/tmp', 'data') : path.join(__dirname, 'data');
 const proofDir = path.join(dataDir, 'proofs');
@@ -151,6 +151,27 @@ app.get('/favicon.ico', (req, res) => {
   } else {
     res.status(204).end();
   }
+});
+
+// Explicit static routes for critical frontend assets
+app.get('/styles.css', (req, res) => {
+  const f = fs.existsSync(path.join(__dirname, 'styles.css')) ? path.join(__dirname, 'styles.css') : path.join(process.cwd(), 'styles.css');
+  res.setHeader('Content-Type', 'text/css; charset=UTF-8');
+  res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  res.sendFile(f);
+});
+
+app.get('/app.js', (req, res) => {
+  const f = fs.existsSync(path.join(__dirname, 'app.js')) ? path.join(__dirname, 'app.js') : path.join(process.cwd(), 'app.js');
+  res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+  res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  res.sendFile(f);
+});
+
+app.get('/config.js', (req, res) => {
+  const f = fs.existsSync(path.join(__dirname, 'config.js')) ? path.join(__dirname, 'config.js') : path.join(process.cwd(), 'config.js');
+  res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+  res.sendFile(f);
 });
 
 // Performance: Cache headers for static assets
