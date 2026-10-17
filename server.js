@@ -12,7 +12,7 @@ if (fs.existsSync(envPath)) require('dotenv').config({ path: envPath });
 else if (fs.existsSync(envExPath)) require('dotenv').config({ path: envExPath });
 
 // Modules (load after env)
-const { notifyAdmin, notifyGuildGloryOrder, checkChannelMembership } = require('./bot');
+const { notifyAdmin, notifyGuildGloryOrder, checkChannelMembership, processTelegramUpdate, createPendingAuthToken, getPendingAuthToken, consumePendingAuthToken } = require('./bot');
 const db = require('./db');
 const { authMiddleware, optionalAuth, verifyTelegramLogin, setSessionCookie, clearSessionCookie } = require('./auth');
 
@@ -251,6 +251,47 @@ app.get('/api/auth/me', optionalAuth, async (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   clearSessionCookie(res);
   res.json({ ok: true });
+});
+
+// ── Telegram Deep-Link Auth ───────────────────────────────────────────────────
+app.post('/api/auth/start-connect', async (req, res) => {
+  try {
+    await db.initDb();
+    const refCode = req.body?.ref_code || null;
+    const token = createPendingAuthToken(refCode);
+    const botUser = 'fflike_sbsbot';
+    res.json({ ok: true, token, botUsername: botUser, connectUrl: `https://t.me/${botUser}?start=auth_${token}` });
+  } catch (e) {
+    res.status(500).json({ error: 'Failed to start connection' });
+  }
+});
+
+app.get('/api/auth/poll-connect', async (req, res) => {
+  try {
+    const token = String(req.query.token || '').trim();
+    if (!token) return res.status(400).json({ error: 'Missing token' });
+    const user = consumePendingAuthToken(token);
+    if (user) {
+      setSessionCookie(res, user.id);
+      const { id, telegram_id, name, username, photo_url, credits, channels_verified, referral_code, created_at } = user;
+      return res.json({ completed: true, ok: true, user: { id, telegram_id, name, username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at } });
+    }
+    const entry = getPendingAuthToken(token);
+    if (!entry) return res.status(404).json({ error: 'Session expired or invalid' });
+    return res.json({ completed: false });
+  } catch (e) {
+    res.status(500).json({ error: 'Poll failed' });
+  }
+});
+
+// ── Telegram Webhook (for Vercel serverless) ──────────────────────────────────
+app.post(['/api/telegram-webhook', '/api/bot/webhook'], async (req, res) => {
+  res.sendStatus(200);
+  try {
+    if (req.body) await processTelegramUpdate(req.body);
+  } catch (e) {
+    console.error('[Webhook] Error processing update:', e.message);
+  }
 });
 
 // ── Membership Verify ─────────────────────────────────────────────────────────

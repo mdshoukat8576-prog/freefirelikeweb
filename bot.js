@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_CHAT_ID = String(process.env.ADMIN_CHAT_ID || '').trim();
@@ -91,27 +92,111 @@ async function handleCallback(q){
   try { await api('sendMessage',{chat_id:ADMIN_CHAT_ID,text:`<b>${statusLabel}</b>\nOrder <code>${esc(updated.id)}</code>\nUID <code>${esc(updated.uid)}</code> · ${esc(updated.server)}\nPlan: ${esc(updated.plan)}`,parse_mode:'HTML'}); } catch {}
 }
 
+const pendingAuthTokens = new Map();
+
+function createPendingAuthToken(refCode = null) {
+  const token = crypto.randomBytes(16).toString('hex');
+  pendingAuthTokens.set(token, {
+    createdAt: Date.now(),
+    refCode,
+    user: null
+  });
+  return token;
+}
+
+function getPendingAuthToken(token) {
+  return pendingAuthTokens.get(token);
+}
+
+function setPendingAuthToken(token, data) {
+  pendingAuthTokens.set(token, data);
+}
+
+function consumePendingAuthToken(token) {
+  const entry = pendingAuthTokens.get(token);
+  if (entry && entry.user) {
+    pendingAuthTokens.delete(token);
+    return entry.user;
+  }
+  return null;
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of pendingAuthTokens.entries()) {
+    if (now - v.createdAt > 10 * 60 * 1000) pendingAuthTokens.delete(k);
+  }
+}, 5 * 60 * 1000);
+
+async function processTelegramUpdate(u) {
+  if (!u) return;
+  if (u.callback_query) {
+    await handleCallback(u.callback_query);
+    return;
+  }
+  const m = u.message;
+  if (!m || !m.text) return;
+
+  // Deep-link Telegram Auth: /start auth_<token>
+  if (m.text.startsWith('/start auth_')) {
+    const token = m.text.replace('/start auth_', '').trim();
+    const entry = getPendingAuthToken(token);
+    const from = m.from || m.chat;
+    if (entry && from) {
+      const telegramId = String(from.id);
+      const name = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'User';
+      const username = from.username || null;
+      const db = require('./db');
+      await db.initDb();
+      const user = db.upsertUser({
+        telegram_id: telegramId,
+        name,
+        username,
+        photo_url: null
+      });
+      if (entry.refCode) {
+        try {
+          const referrer = db.getUser(entry.refCode) || db.getUserById(entry.refCode);
+          if (referrer && String(referrer.telegram_id) !== telegramId) {
+            db.createReferral(referrer.id, user.id);
+          }
+        } catch (_) {}
+      }
+      entry.user = user;
+      setPendingAuthToken(token, entry);
+      await api('sendMessage', {
+        chat_id: m.chat.id,
+        text: `<b>✅ Connected to FFLike!</b>\n\nWelcome, <b>${esc(name)}</b>! Your Telegram account has been linked successfully.\n\n👉 Return to your browser window to claim your <b>Free Daily Likes</b>!`,
+        parse_mode: 'HTML'
+      });
+      return;
+    }
+  }
+
+  if (m.text.startsWith('/start')) {
+    await api('sendMessage', {
+      chat_id: m.chat.id,
+      text: `<b>🎮 Welcome to FFLike Official Bot!</b>\n\nThis bot verifies your account and sends payment confirmations.\n\nYour chat ID: <code>${m.chat.id}</code>\n\nVisit <a href="https://fflike.sbs/">FFLike Store</a> to order Auto Likes or get Free Likes!`,
+      parse_mode: 'HTML'
+    });
+  } else if (m.text === '/orders') {
+    const recent = readOrders().slice(0, 8);
+    const text = recent.length ? recent.map(o => `<code>${esc(o.id)}</code> · ${esc(o.plan)} · ${esc(o.uid)} · ${esc(o.status)}`).join('\n') : 'No orders yet.';
+    await api('sendMessage', { chat_id: m.chat.id, text: `<b>Recent orders</b>\n\n${text}`, parse_mode: 'HTML' });
+  }
+}
+
 let offset=0, pollBackoff=2000, pollStopped=false;
 async function poll(){
   if (pollStopped) return;
   try {
     const updates=await api('getUpdates',{timeout:25,offset,allowed_updates:['message','callback_query']});
-    pollBackoff=2000; // reset on success
+    pollBackoff=2000;
     for(const u of updates){
       offset=u.update_id+1;
-      if(u.callback_query){ await handleCallback(u.callback_query); continue; }
-      const m=u.message;
-      if(!m || !m.text) continue;
-      if(m.text.startsWith('/start')) {
-        await api('sendMessage',{chat_id:m.chat.id,text:`<b>FF Auto Like Admin Bot</b>\n\nYour chat ID is:\n<code>${m.chat.id}</code>\n\nUse this chat ID as <code>ADMIN_CHAT_ID</code> in your website .env.`,parse_mode:'HTML'});
-      } else if(m.text === '/orders') {
-        const recent=readOrders().slice(0,8);
-        const text=recent.length?recent.map(o=>`<code>${esc(o.id)}</code> · ${esc(o.plan)} · ${esc(o.uid)} · ${esc(o.status)}`).join('\n'):'No orders yet.';
-        await api('sendMessage',{chat_id:m.chat.id,text:`<b>Recent orders</b>\n\n${text}`,parse_mode:'HTML'});
-      }
+      await processTelegramUpdate(u);
     }
   } catch (e) {
-    // If Unauthorized, bot token is revoked/invalid — stop polling, don't spam logs
     if (e.message && (e.message.includes('Unauthorized') || e.message.includes('401'))) {
       if (!pollStopped) {
         console.error('[Telegram] Bot token invalid/revoked — polling DISABLED. Update BOT_TOKEN in .env to re-enable.');
@@ -119,7 +204,7 @@ async function poll(){
       }
       return;
     }
-    pollBackoff = Math.min(pollBackoff * 2, 60000); // exponential backoff up to 60s
+    pollBackoff = Math.min(pollBackoff * 2, 60000);
     console.error('[Telegram] poll error (retry in', Math.round(pollBackoff/1000), 's):', e.message);
     await new Promise(r=>setTimeout(r, pollBackoff));
   }
@@ -132,9 +217,8 @@ async function start(){
     return;
   }
   if (!BOT_TOKEN || !ADMIN_CHAT_ID) return;
-  // Send a one-time startup message so configuration problems are obvious.
   try {
-    await api('sendMessage',{chat_id:ADMIN_CHAT_ID,text:'<b>FF Auto Like Bot connected ✓</b>\n\nPayment-proof notifications are active.',parse_mode:'HTML'});
+    await api('sendMessage',{chat_id:ADMIN_CHAT_ID,text:'<b>FF Auto Like Bot connected ✓</b> (@fflike_sbsbot)\n\nPayment-proof notifications are active.',parse_mode:'HTML'});
     console.log('[Telegram] Startup test message sent.');
   } catch (e) {
     console.error('[Telegram] Startup test failed:', e.message);
@@ -145,7 +229,15 @@ async function start(){
   poll();
 }
 
-module.exports = { notifyAdmin, notifyGuildGloryOrder, checkChannelMembership };
+module.exports = {
+  notifyAdmin,
+  notifyGuildGloryOrder,
+  checkChannelMembership,
+  processTelegramUpdate,
+  createPendingAuthToken,
+  getPendingAuthToken,
+  consumePendingAuthToken
+};
 start();
 
 async function checkChannelMembership(telegramId, channelUsername) {

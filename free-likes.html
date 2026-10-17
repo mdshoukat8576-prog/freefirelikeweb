@@ -64,6 +64,13 @@
 .history-row .h-meta{color:var(--muted);flex:1}
 .history-row .h-likes{font:700 13px "Outfit";color:#62e6ae}
 .history-row .h-status{font-size:10px;color:var(--muted)}
+.tg-waiting-box{text-align:center;padding:24px 16px;border:1px solid rgba(34,158,217,.3);border-radius:18px;background:rgba(34,158,217,.06);margin-top:16px}
+.tg-waiting-box .spinner{width:28px;height:28px;border:3px solid var(--line);border-top-color:#229ED9;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px}
+.tg-waiting-box p{color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.tg-connect-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:54px;padding:0 20px;border-radius:16px;background:linear-gradient(135deg,#229ED9,#0F86C3);border:none;color:#fff;font:700 15px 'Space Grotesk',sans-serif;cursor:pointer;transition:.2s;box-shadow:0 4px 20px rgba(34,158,217,.3)}
+.tg-connect-btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(34,158,217,.4)}
+.tg-connect-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
 </style>
 </head>
 <body>
@@ -90,29 +97,19 @@
     <div class="tg-connect-box">
       <div style="font-size:40px;margin-bottom:14px">🎮</div>
       <h2>Connect Telegram to Continue</h2>
-      <div style="margin:20px auto 14px;max-width:380px">
-        <form id="quickConnectForm" onsubmit="handleQuickConnect(event)">
-          <div style="display:flex;gap:8px">
-            <input id="tgHandleInput" type="text" placeholder="@your_username or ID" required style="flex:1;min-height:48px;padding:0 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:14px;outline:none">
-            <button type="submit" class="primary" id="quickConnectBtn" style="min-height:48px;padding:0 18px;border-radius:14px;font-size:13px;white-space:nowrap">Connect ➔</button>
-          </div>
-        </form>
-        <div style="margin:16px 0 12px;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px">
-          <div style="flex:1;height:1px;background:var(--line)"></div>
-          <span>OR VIA TELEGRAM BOT</span>
-          <div style="flex:1;height:1px;background:var(--line)"></div>
-        </div>
-        <a href="https://t.me/riyazstorebot" target="_blank" rel="noopener" class="glass-btn full" style="display:flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:12px;font-size:12.5px;text-decoration:none">
-          ✈️ Open @riyazstorebot in Telegram ↗
-        </a>
+      <p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:24px;max-width:420px;margin-inline:auto">Click the button below to connect your Telegram account instantly via our bot. No username needed!</p>
+      <div style="margin:0 auto;max-width:380px">
+        <button id="btnConnectTg" type="button" class="tg-connect-btn" onclick="startTgConnect()">
+          ✈️ Connect with Telegram
+        </button>
+        <div id="tgWaitingArea"></div>
       </div>
-      <div class="tg-btn-wrap" id="tgWidgetWrap" style="margin-top:6px"></div>
       <div id="connectError" style="display:none;margin-top:12px" class="err-box"></div>
-      <p style="margin-top:16px;font-size:11px;color:var(--muted)">✓ Instant Connection &nbsp;·&nbsp; ✓ No password required &nbsp;·&nbsp; ✓ 7-day session</p>
+      <p style="margin-top:16px;font-size:11px;color:var(--muted)">✓ 1-Click Connection &nbsp;·&nbsp; ✓ No password needed &nbsp;·&nbsp; ✓ 7-day session</p>
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px">
       <div class="service-card small" style="flex-direction:column;align-items:flex-start;gap:8px">
-        <span style="font-size:24px">🔗</span><h3 style="font:700 14px 'Space Grotesk'">Connect</h3><p style="color:var(--muted);font-size:11px">Link your Telegram account securely</p>
+        <span style="font-size:24px">🔗</span><h3 style="font:700 14px 'Space Grotesk'">Connect</h3><p style="color:var(--muted);font-size:11px">Link Telegram with 1 click</p>
       </div>
       <div class="service-card small" style="flex-direction:column;align-items:flex-start;gap:8px">
         <span style="font-size:24px">✅</span><h3 style="font:700 14px 'Space Grotesk'">Join Channels</h3><p style="color:var(--muted);font-size:11px">Join 4 required Telegram channels</p>
@@ -228,71 +225,57 @@
 </main>
 
 <script>
-// Telegram Login Widget callback — MUST be defined before widget loads
-function onTelegramAuth(user) {
-  const refCode = localStorage.getItem('ff_ref') || '';
-  fetch('/api/auth/telegram', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...user, ref_code: refCode })
-  }).then(r => r.json()).then(data => {
-    if (data.ok) {
-      localStorage.removeItem('ff_ref');
-      if (typeof window.setFlUser === 'function') window.setFlUser(data.user);
-      else location.reload();
-    } else {
-      const errEl = document.getElementById('connectError');
-      if (errEl) { errEl.textContent = data.error || 'Auth failed'; errEl.style.display = 'block'; }
-    }
-  }).catch(() => {
-    const errEl = document.getElementById('connectError');
-    if (errEl) { errEl.textContent = 'Connection error. Please try again.'; errEl.style.display = 'block'; }
-  });
-}
-
-function handleQuickConnect(e) {
-  e.preventDefault();
-  const input = document.getElementById('tgHandleInput');
-  const val = (input?.value || '').trim();
-  if (!val) return;
-  const btn = document.getElementById('quickConnectBtn');
-  btn.disabled = true;
-  btn.textContent = 'Connecting…';
+// 1-Click Telegram Deep-Link Connect
+let _tgPollTimer = null;
+function startTgConnect() {
+  const btn = document.getElementById('btnConnectTg');
+  const waitArea = document.getElementById('tgWaitingArea');
   const errBox = document.getElementById('connectError');
   if (errBox) errBox.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Starting…';
 
   const refCode = localStorage.getItem('ff_ref') || '';
-  fetch('/api/auth/quick-connect', {
+  fetch('/api/auth/start-connect', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: val, ref_code: refCode })
+    body: JSON.stringify({ ref_code: refCode })
   }).then(r => r.json()).then(data => {
-    if (data.ok) {
-      localStorage.removeItem('ff_ref');
-      if (typeof window.setFlUser === 'function') {
-        window.setFlUser(data.user);
-      } else {
-        location.reload();
-      }
-    } else {
-      if (errBox) { errBox.textContent = data.error || 'Connection failed'; errBox.style.display = 'block'; }
-      btn.disabled = false;
-      btn.textContent = 'Connect ➔';
-    }
-  }).catch(() => {
-    if (errBox) { errBox.textContent = 'Network error. Please try again.'; errBox.style.display = 'block'; }
+    if (!data.ok) throw new Error(data.error || 'Failed');
+    const url = data.connectUrl;
+    window.open(url, '_blank');
+    btn.style.display = 'none';
+    waitArea.innerHTML = `
+      <div class="tg-waiting-box">
+        <div class="spinner"></div>
+        <p><b>Waiting for Telegram confirmation…</b><br><small>Open <b>@fflike_sbsbot</b> in Telegram and tap <b>START</b></small></p>
+        <a href="${url}" target="_blank" rel="noopener" class="glass-btn" style="display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:12px;font-size:12px;text-decoration:none">✈️ Reopen Telegram ↗</a>
+      </div>`;
+    // Poll for completion
+    let attempts = 0;
+    _tgPollTimer = setInterval(async () => {
+      attempts++;
+      if (attempts > 200) { clearInterval(_tgPollTimer); waitArea.innerHTML = '<div class="err-box">Session timed out. Please refresh and try again.</div>'; return; }
+      try {
+        const r = await fetch(`/api/auth/poll-connect?token=${data.token}`);
+        const poll = await r.json();
+        if (poll.completed && poll.ok) {
+          clearInterval(_tgPollTimer);
+          localStorage.removeItem('ff_ref');
+          if (typeof window.setFlUser === 'function') window.setFlUser(poll.user);
+          else location.reload();
+        } else if (r.status === 404) {
+          clearInterval(_tgPollTimer);
+          waitArea.innerHTML = '<div class="err-box">Session expired. Please refresh and try again.</div>';
+        }
+      } catch (_) {}
+    }, 1500);
+  }).catch(err => {
     btn.disabled = false;
-    btn.textContent = 'Connect ➔';
+    btn.innerHTML = '✈️ Connect with Telegram';
+    if (errBox) { errBox.textContent = err.message || 'Connection failed'; errBox.style.display = 'block'; }
   });
 }
-</script>
-
-<!-- Telegram Login Widget -->
-<script async src="https://telegram.org/js/telegram-widget.js?22"
-  data-telegram-login="riyazstorebot"
-  data-size="large"
-  data-onauth="onTelegramAuth(user)"
-  data-request-access="write">
 </script>
 
 <script src="/config.js?v=2.4.0"></script>
@@ -335,7 +318,6 @@ function handleQuickConnect(e) {
   function renderState() {
     if (!user) {
       setState('stateConnect');
-      loadTgWidget();
       return;
     }
     const credits = Number(user.credits) || 0;
@@ -353,18 +335,6 @@ function handleQuickConnect(e) {
     }
   }
 
-  function loadTgWidget() {
-    // Widget loads async via script tag above; just show placeholder for a moment
-    const wrap = $('#tgWidgetWrap');
-    if (!wrap) return;
-    // Check if widget already loaded
-    setTimeout(() => {
-      const ph = document.getElementById('tg-widget-placeholder');
-      if (ph && !document.querySelector('iframe[src*="telegram"]')) {
-        ph.textContent = 'If button does not appear, please refresh.';
-      }
-    }, 3000);
-  }
 
   function populateRegions() {
     const sel = $('#likesRegion');
