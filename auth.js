@@ -44,8 +44,12 @@ function verifyLoginToken(token) {
  * Returns the verified data object or throws.
  */
 function verifyTelegramLogin(data) {
-  const BOT_TOKEN = process.env.BOT_TOKEN || '8430101695:AAGx_Et9LWDBtKIFiwDBxjxnRrjaiZVitdM';
-  if (!BOT_TOKEN) throw new Error('Bot token not configured');
+  const candidateTokens = [
+    process.env.LOGIN_BOT_TOKEN,
+    '8994422473:AAG8iknKl0eK41Lf9V0gYa7qB9eW3QmPlOE',
+    process.env.BOT_TOKEN,
+    '8430101695:AAGx_Et9LWDBtKIFiwDBxjxnRrjaiZVitdM'
+  ].filter(Boolean);
 
   const { hash, ...rest } = data;
   if (!hash) throw new Error('Missing hash');
@@ -64,11 +68,17 @@ function verifyTelegramLogin(data) {
     .map(k => `${k}=${rest[k]}`)
     .join('\n');
 
-  // Key = SHA256(bot_token)
-  const secretKey = crypto.createHash('sha256').update(BOT_TOKEN).digest();
-  const expectedHash = crypto.createHmac('sha256', secretKey).update(checkStr).digest('hex');
+  let signatureValid = false;
+  for (const botToken of candidateTokens) {
+    const secretKey = crypto.createHash('sha256').update(botToken).digest();
+    const expectedHash = crypto.createHmac('sha256', secretKey).update(checkStr).digest('hex');
+    if (expectedHash === hash) {
+      signatureValid = true;
+      break;
+    }
+  }
 
-  if (expectedHash !== hash) throw new Error('Invalid Telegram auth signature');
+  if (!signatureValid) throw new Error('Invalid Telegram auth signature');
   return data;
 }
 
