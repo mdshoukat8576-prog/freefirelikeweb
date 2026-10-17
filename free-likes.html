@@ -273,44 +273,6 @@ window.onTelegramAuth = function(tgUser) {
   });
 };
 
-window.handleIdConnect = function(e) {
-  e.preventDefault();
-  const input = document.getElementById('tgIdInput');
-  const val = (input?.value || '').trim().replace(/^@/, '');
-  const btn = document.getElementById('idConnectBtn');
-  const errBox = document.getElementById('connectError');
-  if (errBox) errBox.style.display = 'none';
-
-  if (!/^\d{5,15}$/.test(val)) {
-    if (errBox) { errBox.textContent = 'Please enter your numeric Telegram ID (e.g. 7932057377). Send /start to @fflike_sbsbot to see your ID.'; errBox.style.display = 'block'; }
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = 'Connecting…';
-  const refCode = localStorage.getItem('ff_ref') || '';
-
-  fetch('/api/auth/quick-connect', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ telegram_id: val, ref_code: refCode })
-  }).then(r => r.json()).then(data => {
-    btn.disabled = false;
-    btn.textContent = 'Connect ➔';
-    if (data.ok) {
-      localStorage.removeItem('ff_ref');
-      if (typeof window.setFlUser === 'function') window.setFlUser(data.user);
-      else location.reload();
-    } else {
-      if (errBox) { errBox.textContent = data.error || 'Connection failed'; errBox.style.display = 'block'; }
-    }
-  }).catch(() => {
-    btn.disabled = false;
-    btn.textContent = 'Connect ➔';
-    if (errBox) { errBox.textContent = 'Network error. Please try again.'; errBox.style.display = 'block'; }
-  });
-};
-
 function startTgConnect() {
   const btn = document.getElementById('btnConnectTg');
   const waitArea = document.getElementById('tgWaitingArea');
