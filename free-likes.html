@@ -97,19 +97,53 @@
     <div class="tg-connect-box">
       <div style="font-size:40px;margin-bottom:14px">🎮</div>
       <h2>Connect Telegram to Continue</h2>
-      <p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:24px;max-width:420px;margin-inline:auto">Click the button below to connect your Telegram account instantly via our bot. No username needed!</p>
+      <p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:20px;max-width:420px;margin-inline:auto">Choose your preferred login method below:</p>
+      
       <div style="margin:0 auto;max-width:380px">
+        <!-- 1. Official Telegram Login Widget -->
+        <div id="tgWidgetArea" style="display:flex;justify-content:center;margin:12px 0 16px;min-height:42px">
+          <script async src="https://telegram.org/js/telegram-widget.js?22"
+            data-telegram-login="fflike_sbsbot"
+            data-size="large"
+            data-userpic="false"
+            data-onauth="onTelegramAuth(user)"
+            data-request-access="write">
+          </script>
+        </div>
+
+        <div style="margin:16px 0 14px;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px">
+          <div style="flex:1;height:1px;background:var(--line)"></div>
+          <span>OR VIA TELEGRAM BOT</span>
+          <div style="flex:1;height:1px;background:var(--line)"></div>
+        </div>
+
         <button id="btnConnectTg" type="button" class="tg-connect-btn" onclick="startTgConnect()">
-          ✈️ Connect with Telegram
+          ✈️ 1-Click Connect with Bot
         </button>
         <div id="tgWaitingArea"></div>
+        <p style="font-size:11.5px;color:var(--muted);margin:8px 0 14px;line-height:1.5">Opens @fflike_sbsbot · Tap START to connect automatically.</p>
+
+        <div style="margin:16px 0 14px;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px">
+          <div style="flex:1;height:1px;background:var(--line)"></div>
+          <span>OR ENTER TELEGRAM ID</span>
+          <div style="flex:1;height:1px;background:var(--line)"></div>
+        </div>
+
+        <form id="quickConnectForm" onsubmit="handleIdConnect(event)">
+          <div style="display:flex;gap:8px">
+            <input id="tgIdInput" type="text" inputmode="numeric" placeholder="Numeric ID e.g. 7932057377" required style="flex:1;min-height:48px;padding:0 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:13.5px;outline:none">
+            <button type="submit" class="primary" id="idConnectBtn" style="min-height:48px;padding:0 18px;border-radius:14px;font-size:13px;white-space:nowrap">Connect ➔</button>
+          </div>
+        </form>
+        <small style="color:var(--muted);font-size:11px;display:block;margin-top:6px;text-align:left">Tip: Send <code>/start</code> to <a href="https://t.me/fflike_sbsbot" target="_blank" rel="noopener" style="color:#229ED9">@fflike_sbsbot</a> to find your numeric ID</small>
       </div>
-      <div id="connectError" style="display:none;margin-top:12px" class="err-box"></div>
-      <p style="margin-top:16px;font-size:11px;color:var(--muted)">✓ 1-Click Connection &nbsp;·&nbsp; ✓ No password needed &nbsp;·&nbsp; ✓ 7-day session</p>
+
+      <div id="connectError" style="display:none;margin-top:14px" class="err-box"></div>
+      <p style="margin-top:16px;font-size:11px;color:var(--muted)">✓ Real Telegram verification &nbsp;·&nbsp; ✓ No password required &nbsp;·&nbsp; ✓ 7-day session</p>
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px">
       <div class="service-card small" style="flex-direction:column;align-items:flex-start;gap:8px">
-        <span style="font-size:24px">🔗</span><h3 style="font:700 14px 'Space Grotesk'">Connect</h3><p style="color:var(--muted);font-size:11px">Link Telegram with 1 click</p>
+        <span style="font-size:24px">🔗</span><h3 style="font:700 14px 'Space Grotesk'">Connect</h3><p style="color:var(--muted);font-size:11px">Link Telegram securely</p>
       </div>
       <div class="service-card small" style="flex-direction:column;align-items:flex-start;gap:8px">
         <span style="font-size:24px">✅</span><h3 style="font:700 14px 'Space Grotesk'">Join Channels</h3><p style="color:var(--muted);font-size:11px">Join 4 required Telegram channels</p>
@@ -124,7 +158,10 @@
   <div class="fl-state" id="stateVerify">
     <div id="profileCard2" class="tg-profile-card"></div>
     <div class="service-card" style="padding:22px">
-      <span class="eyebrow">Step 2 of 2</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span class="eyebrow" style="margin:0">Step 2 of 2</span>
+        <button type="button" class="glass-btn small" onclick="logoutAccount()" style="font-size:11px;padding:4px 10px;border-radius:8px">Switch Account ➔</button>
+      </div>
       <h2 style="font:700 20px 'Space Grotesk';margin:10px 0 6px">Join Required Channels</h2>
       <p style="color:var(--muted);font-size:13px;line-height:1.65;margin-bottom:16px">Join all 4 channels below, then click Verify to claim your free credit.</p>
       <div class="channel-list" id="channelList">
@@ -225,8 +262,69 @@
 </main>
 
 <script>
-// 1-Click Telegram Deep-Link Connect
+// Telegram Auth Handlers
 let _tgPollTimer = null;
+
+window.onTelegramAuth = function(tgUser) {
+  const refCode = localStorage.getItem('ff_ref') || '';
+  const errBox = document.getElementById('connectError');
+  if (errBox) errBox.style.display = 'none';
+
+  fetch('/api/auth/telegram', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...tgUser, ref_code: refCode })
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      localStorage.removeItem('ff_ref');
+      if (typeof window.setFlUser === 'function') window.setFlUser(data.user);
+      else location.reload();
+    } else {
+      if (errBox) { errBox.textContent = data.error || 'Authentication failed'; errBox.style.display = 'block'; }
+    }
+  }).catch(() => {
+    if (errBox) { errBox.textContent = 'Connection error. Please try again.'; errBox.style.display = 'block'; }
+  });
+};
+
+window.handleIdConnect = function(e) {
+  e.preventDefault();
+  const input = document.getElementById('tgIdInput');
+  const val = (input?.value || '').trim().replace(/^@/, '');
+  const btn = document.getElementById('idConnectBtn');
+  const errBox = document.getElementById('connectError');
+  if (errBox) errBox.style.display = 'none';
+
+  if (!/^\d{5,15}$/.test(val)) {
+    if (errBox) { errBox.textContent = 'Please enter your numeric Telegram ID (e.g. 7932057377). Send /start to @fflike_sbsbot to see your ID.'; errBox.style.display = 'block'; }
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Connecting…';
+  const refCode = localStorage.getItem('ff_ref') || '';
+
+  fetch('/api/auth/quick-connect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ telegram_id: val, ref_code: refCode })
+  }).then(r => r.json()).then(data => {
+    btn.disabled = false;
+    btn.textContent = 'Connect ➔';
+    if (data.ok) {
+      localStorage.removeItem('ff_ref');
+      if (typeof window.setFlUser === 'function') window.setFlUser(data.user);
+      else location.reload();
+    } else {
+      if (errBox) { errBox.textContent = data.error || 'Connection failed'; errBox.style.display = 'block'; }
+    }
+  }).catch(() => {
+    btn.disabled = false;
+    btn.textContent = 'Connect ➔';
+    if (errBox) { errBox.textContent = 'Network error. Please try again.'; errBox.style.display = 'block'; }
+  });
+};
+
 function startTgConnect() {
   const btn = document.getElementById('btnConnectTg');
   const waitArea = document.getElementById('tgWaitingArea');
@@ -272,7 +370,7 @@ function startTgConnect() {
     }, 1500);
   }).catch(err => {
     btn.disabled = false;
-    btn.innerHTML = '✈️ Connect with Telegram';
+    btn.innerHTML = '✈️ 1-Click Connect with Bot';
     if (errBox) { errBox.textContent = err.message || 'Connection failed'; errBox.style.display = 'block'; }
   });
 }
@@ -312,8 +410,17 @@ function startTgConnect() {
         <div class="tg-name">${esc(u.name)}</div>
         <div class="tg-meta">${u.username ? '@' + esc(u.username) + ' · ' : ''}ID: ${esc(u.telegram_id)}</div>
       </div>
-      <div class="credit-badge">${credits} Credit${credits !== 1 ? 's' : ''}</div>`;
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <div class="credit-badge">${credits} Credit${credits !== 1 ? 's' : ''}</div>
+        <button type="button" onclick="logoutAccount()" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;text-decoration:underline">Switch account</button>
+      </div>`;
   }
+
+  window.logoutAccount = async function() {
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (_) {}
+    user = null;
+    renderState();
+  };
 
   function renderState() {
     if (!user) {
@@ -371,6 +478,10 @@ function startTgConnect() {
           if (me.user) { user = me.user; renderState(); }
         }, 1200);
       } else {
+        if (data.reconnect) {
+          result.innerHTML = `<div class="err-box">${esc(data.error)} <div style="margin-top:10px"><button onclick="logoutAccount()" class="primary" type="button" style="padding:6px 16px;font-size:12px">Reconnect Real Telegram ➔</button></div></div>`;
+          return;
+        }
         const unjoined = (data.channels || []).filter(c => !c.joined).map(c => c.name).join(', ');
         result.innerHTML = `<div class="err-box">Please join: <b>${unjoined}</b> then try again.</div>`;
         if (data.channels) {
@@ -509,7 +620,29 @@ function startTgConnect() {
   }
 
   async function init() {
-    // Check existing session
+    // 1. Check for token in URL query (from Telegram bot 1-click button)
+    const urlParams = new URLSearchParams(location.search);
+    const botToken = urlParams.get('token');
+    if (botToken) {
+      try {
+        const r = await fetch('/api/auth/token-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: botToken, ref_code: localStorage.getItem('ff_ref') || '' })
+        });
+        const data = await r.json();
+        if (data.ok && data.user) {
+          localStorage.removeItem('ff_ref');
+          const cleanUrl = location.pathname + (urlParams.get('ref') ? `?ref=${urlParams.get('ref')}` : '');
+          window.history.replaceState({}, '', cleanUrl);
+          user = data.user;
+          renderState();
+          return;
+        }
+      } catch (_) {}
+    }
+
+    // 2. Check existing session
     try {
       const r = await fetch('/api/auth/me');
       const data = await r.json();

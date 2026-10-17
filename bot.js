@@ -174,10 +174,26 @@ async function processTelegramUpdate(u) {
   }
 
   if (m.text.startsWith('/start')) {
+    const from = m.from || m.chat;
+    const telegramId = String(from.id);
+    const name = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'User';
+    const username = from.username || null;
+    let loginUrl = 'https://www.fflike.sbs/free-likes';
+    try {
+      const { signLoginToken } = require('./auth');
+      const token = signLoginToken({ id: telegramId, name, username });
+      loginUrl = `https://www.fflike.sbs/free-likes?token=${token}`;
+    } catch (_) {}
+
     await api('sendMessage', {
       chat_id: m.chat.id,
-      text: `<b>🎮 Welcome to FFLike Official Bot!</b>\n\nThis bot verifies your account and sends payment confirmations.\n\nYour chat ID: <code>${m.chat.id}</code>\n\nVisit <a href="https://fflike.sbs/">FFLike Store</a> to order Auto Likes or get Free Likes!`,
-      parse_mode: 'HTML'
+      text: `<b>🎮 Welcome to FFLike Official Bot!</b>\n\n👤 <b>Account:</b> ${esc(name)}\n🆔 <b>Your Telegram ID:</b> <code>${telegramId}</code>\n\nTap below to login directly to FFLike and claim your <b>Free Daily Likes</b>! 👇`,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '🚀 Login to FFLike (Free Likes)', url: loginUrl }]
+        ]
+      }
     });
   } else if (m.text === '/orders') {
     const recent = readOrders().slice(0, 8);
@@ -248,7 +264,7 @@ async function checkChannelMembership(telegramId, channelUsername) {
     const data = await r.json();
     if (!data.ok) return false;
     const status = data.result && data.result.status;
-    return ['member', 'administrator', 'creator'].includes(status);
+    return ['member', 'administrator', 'creator', 'restricted'].includes(status);
   } catch (e) {
     console.error('[Telegram] checkChannelMembership error:', e.message);
     return false;

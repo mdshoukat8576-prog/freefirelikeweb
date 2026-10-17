@@ -26,6 +26,18 @@ function verifyToken(token) {
   }
 }
 
+function signLoginToken(payload) {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
+}
+
+function verifyLoginToken(token) {
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (_) {
+    return null;
+  }
+}
+
 /**
  * Verify Telegram Login Widget data.
  * https://core.telegram.org/widgets/login#checking-authorization
@@ -91,5 +103,7 @@ module.exports = {
   authMiddleware,
   optionalAuth,
   setSessionCookie,
-  clearSessionCookie
+  clearSessionCookie,
+  signLoginToken,
+  verifyLoginToken
 };

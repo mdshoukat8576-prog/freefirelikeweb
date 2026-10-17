@@ -14,7 +14,7 @@ else if (fs.existsSync(envExPath)) require('dotenv').config({ path: envExPath })
 // Modules (load after env)
 const { notifyAdmin, notifyGuildGloryOrder, checkChannelMembership, processTelegramUpdate, createPendingAuthToken, getPendingAuthToken, consumePendingAuthToken } = require('./bot');
 const db = require('./db');
-const { authMiddleware, optionalAuth, verifyTelegramLogin, setSessionCookie, clearSessionCookie } = require('./auth');
+const { authMiddleware, optionalAuth, verifyTelegramLogin, setSessionCookie, clearSessionCookie, verifyLoginToken } = require('./auth');
 
 const app         = express();
 const REQUESTED_PORT = Number(process.env.PORT || 3000);
@@ -207,17 +207,17 @@ app.post('/api/auth/telegram', async (req, res) => {
 app.post('/api/auth/quick-connect', async (req, res) => {
   try {
     await db.initDb();
-    const raw = String(req.body.username || req.body.telegram || '').trim();
-    if (!raw) return res.status(400).json({ error: 'Please enter your Telegram username or ID' });
-    const clean = raw.replace(/^@/, '');
-    const isNumeric = /^\d{5,15}$/.test(clean);
-    const telegramId = isNumeric ? clean : `user_${clean.toLowerCase()}`;
-    const username = isNumeric ? null : clean;
-    const name = `@${clean}`;
+    const raw = String(req.body.telegram_id || req.body.username || req.body.telegram || '').trim().replace(/^@/, '');
+    if (!raw) return res.status(400).json({ error: 'Please enter your numeric Telegram ID' });
+    if (!/^\d{5,15}$/.test(raw)) {
+      return res.status(400).json({ error: 'Telegram ID must be numeric (5-15 digits, e.g. 7932057377). Send /start to @fflike_sbsbot to see your ID.' });
+    }
+    const telegramId = raw;
+    const name = req.body.name || `User ${telegramId.slice(-4)}`;
     const user = db.upsertUser({
       telegram_id: String(telegramId),
       name: name,
-      username: username,
+      username: req.body.username || null,
       photo_url: null
     });
     if (req.body.ref_code) {
@@ -229,11 +229,38 @@ app.post('/api/auth/quick-connect', async (req, res) => {
       } catch (_) {}
     }
     setSessionCookie(res, user.id);
-    const { referral_code, credits, channels_verified, name: uName, photo_url, telegram_id, created_at } = user;
-    res.json({ ok: true, user: { id: user.id, telegram_id, name: uName, username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at } });
+    const { referral_code, credits, channels_verified, name: uName, photo_url, telegram_id: tId, created_at } = user;
+    res.json({ ok: true, user: { id: user.id, telegram_id: tId, name: uName, username: user.username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at } });
   } catch (e) {
     console.error('[Auth Quick]', e.message);
     res.status(500).json({ error: 'Connection failed: ' + e.message });
+  }
+});
+
+app.post('/api/auth/token-login', async (req, res) => {
+  try {
+    await db.initDb();
+    const token = String(req.body?.token || '').trim();
+    if (!token) return res.status(400).json({ error: 'Token missing' });
+    const payload = verifyLoginToken(token);
+    if (!payload || !payload.id) return res.status(401).json({ error: 'Login link expired. Send /start to @fflike_sbsbot again.' });
+    const telegramId = String(payload.id);
+    const name = payload.name || 'Telegram User';
+    const username = payload.username || null;
+    const user = db.upsertUser({ telegram_id: telegramId, name, username, photo_url: null });
+    if (req.body.ref_code) {
+      try {
+        const referrer = db.getUser(req.body.ref_code) || db.getUserById(req.body.ref_code);
+        if (referrer && String(referrer.telegram_id) !== telegramId) {
+          db.createReferral(referrer.id, user.id);
+        }
+      } catch (_) {}
+    }
+    setSessionCookie(res, user.id);
+    const { id, telegram_id, name: uName, username: uUser, photo_url, credits, channels_verified, referral_code, created_at } = user;
+    res.json({ ok: true, user: { id, telegram_id, name: uName, username: uUser, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at } });
+  } catch (e) {
+    res.status(500).json({ error: 'Login failed: ' + e.message });
   }
 });
 
@@ -243,6 +270,11 @@ app.get('/api/auth/me', optionalAuth, async (req, res) => {
     await db.initDb();
     const user = db.getUserById(req.userId);
     if (!user) return res.json({ user: null });
+    // Invalidate non-numeric legacy test accounts
+    if (!/^\d{5,15}$/.test(String(user.telegram_id || ''))) {
+      clearSessionCookie(res);
+      return res.json({ user: null });
+    }
     const { id, telegram_id, name, username, photo_url, credits, channels_verified, referral_code, created_at } = user;
     res.json({ user: { id, telegram_id, name, username, photo_url, credits: Number(credits), channels_verified: Number(channels_verified), referral_code, created_at } });
   } catch (e) { res.status(500).json({ error: 'Failed' }); }
@@ -300,6 +332,11 @@ app.post('/api/membership/verify', authMiddleware, async (req, res) => {
     await db.initDb();
     const user = db.getUserById(req.userId);
     if (!user) return res.status(404).json({ error: 'User not found' });
+
+    if (!/^\d{5,15}$/.test(String(user.telegram_id || ''))) {
+      clearSessionCookie(res);
+      return res.status(400).json({ error: 'Your account was connected with an invalid Telegram ID. Please reconnect with your real Telegram account.', reconnect: true });
+    }
 
     const results = await Promise.all(
       REQUIRED_CHANNELS.map(async ch => {
