@@ -50,14 +50,16 @@ function verifyTelegramLogin(data) {
   const { hash, ...rest } = data;
   if (!hash) throw new Error('Missing hash');
 
-  // Check freshness — must be within 1 hour
+  // Check freshness — must be within 24 hours
   const authDate = Number(rest.auth_date);
-  if (!authDate || Date.now() / 1000 - authDate > 3600) {
+  if (!authDate || Date.now() / 1000 - authDate > 86400) {
     throw new Error('Telegram auth data expired');
   }
 
-  // Build data-check-string
+  // Build data-check-string — ONLY include official Telegram auth fields
+  const validKeys = ['auth_date', 'first_name', 'id', 'last_name', 'photo_url', 'username'];
   const checkStr = Object.keys(rest)
+    .filter(k => validKeys.includes(k) && rest[k] !== undefined && rest[k] !== null && rest[k] !== '')
     .sort()
     .map(k => `${k}=${rest[k]}`)
     .join('\n');
