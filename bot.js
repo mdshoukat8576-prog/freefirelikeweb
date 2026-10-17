@@ -262,7 +262,14 @@ async function start(){
   } catch (e) {
     console.error('[Telegram] Startup test failed:', e.message);
   }
-  try { await api('deleteWebhook',{drop_pending_updates:false}); } catch {}
+  try {
+    const info = await api('getWebhookInfo', {});
+    if (info && info.url) {
+      console.log('[Telegram] Webhook is active on ' + info.url + ' — leaving webhook active.');
+      return;
+    }
+    await api('deleteWebhook', { drop_pending_updates: false });
+  } catch {}
   try { await api('setMyCommands',{commands:[{command:'start',description:'Show admin chat ID / setup'},{command:'orders',description:'Show recent orders'}]}); } catch {}
   console.log('[Telegram] Admin bot connected.');
   poll();
