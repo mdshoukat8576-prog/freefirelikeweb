@@ -22,12 +22,22 @@ const { notifyAdmin } = require('./bot');
 
 const app = express();
 const REQUESTED_PORT = Number(process.env.PORT || 3000);
-const publicDir = path.join(__dirname);
-const dataDir = path.join(__dirname, 'data');
+const publicDir = process.env.VERCEL ? process.cwd() : path.join(__dirname);
+const isVercel = Boolean(process.env.VERCEL);
+const dataDir = isVercel ? path.join('/tmp', 'data') : path.join(__dirname, 'data');
 const proofDir = path.join(dataDir, 'proofs');
-fs.mkdirSync(proofDir, { recursive: true });
+try { fs.mkdirSync(proofDir, { recursive: true }); } catch (e) {}
 const ordersFile = path.join(dataDir, 'orders.json');
-if (!fs.existsSync(ordersFile)) fs.writeFileSync(ordersFile, '[]');
+if (!fs.existsSync(ordersFile)) {
+  const seedFile = path.join(__dirname, 'data', 'orders.json');
+  try {
+    if (fs.existsSync(seedFile)) {
+      fs.copyFileSync(seedFile, ordersFile);
+    } else {
+      fs.writeFileSync(ordersFile, '[]');
+    }
+  } catch (e) {}
+}
 
 const PLANS = {
   '1 Day': { inr: 20, days: 1, likes: 200 },
@@ -325,10 +335,14 @@ function startServer(port) {
   return server;
 }
 
-startServer(REQUESTED_PORT);
+if (!process.env.VERCEL) {
+  startServer(REQUESTED_PORT);
 
-// Keep-Alive: Ping robots.txt every 10 minutes to maintain fast responses on Render
-const pingUrl = process.env.RENDER_EXTERNAL_URL || 'https://fflike.sbs/robots.txt';
-setInterval(() => {
-  fetch(pingUrl).catch(() => {});
-}, 10 * 60 * 1000);
+  // Keep-Alive: Ping robots.txt every 10 minutes to maintain fast responses on Render
+  const pingUrl = process.env.RENDER_EXTERNAL_URL || 'https://fflike.sbs/robots.txt';
+  setInterval(() => {
+    fetch(pingUrl).catch(() => {});
+  }, 10 * 60 * 1000);
+}
+
+module.exports = app;
