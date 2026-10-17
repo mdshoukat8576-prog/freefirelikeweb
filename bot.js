@@ -127,6 +127,10 @@ async function poll(){
 }
 
 async function start(){
+  if (process.env.VERCEL) {
+    console.log('[Telegram] Running on Vercel Serverless — Telegram polling loop disabled.');
+    return;
+  }
   if (!BOT_TOKEN || !ADMIN_CHAT_ID) return;
   // Send a one-time startup message so configuration problems are obvious.
   try {

@@ -1,6 +1,14 @@
 {
   "version": 2,
   "cleanUrls": true,
+  "functions": {
+    "api/**/*.js": {
+      "includeFiles": "{*.html,*.css,*.js,assets/**,blog/**,data/**,sitemap.xml,robots.txt,site.webmanifest,favicon.ico,node_modules/sql.js/dist/**}"
+    },
+    "server.js": {
+      "includeFiles": "{*.html,*.css,*.js,assets/**,blog/**,data/**,sitemap.xml,robots.txt,site.webmanifest,favicon.ico,node_modules/sql.js/dist/**}"
+    }
+  },
   "redirects": [
     {
       "source": "/index.html",
@@ -22,6 +30,10 @@
     {
       "source": "/api/(.*)",
       "destination": "/api/index.js"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/server.js"
     }
   ]
 }

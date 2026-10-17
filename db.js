@@ -20,17 +20,31 @@ async function initDb() {
   if (db) return db;
   if (_initPromise) return _initPromise;
   _initPromise = (async () => {
-    const initSqlJs = require('sql.js');
-    SQL = await initSqlJs();
-    if (fs.existsSync(DB_FILE)) {
-      const buf = fs.readFileSync(DB_FILE);
-      db = new SQL.Database(buf);
-    } else {
-      db = new SQL.Database();
+    try {
+      const initSqlJs = require('sql.js');
+      const wasmCandidates = [
+        path.join(__dirname, 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm'),
+        path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm')
+      ];
+      const wasmPath = wasmCandidates.find(p => fs.existsSync(p));
+      if (wasmPath) {
+        SQL = await initSqlJs({ locateFile: () => wasmPath });
+      } else {
+        SQL = await initSqlJs();
+      }
+      if (fs.existsSync(DB_FILE)) {
+        const buf = fs.readFileSync(DB_FILE);
+        db = new SQL.Database(buf);
+      } else {
+        db = new SQL.Database();
+      }
+      createSchema();
+      saveDb();
+      return db;
+    } catch (e) {
+      console.warn('[DB] initDb fallback:', e.message);
+      return null;
     }
-    createSchema();
-    saveDb();
-    return db;
   })();
   return _initPromise;
 }
