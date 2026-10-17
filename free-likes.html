@@ -28,6 +28,7 @@
 .channel-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:var(--panel2);transition:.25s}
 .channel-item.verified{border-color:rgba(98,230,174,.4)}
 .channel-item .ch-icon{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#229ED9,#0F86C3);display:grid;place-items:center;font-size:16px;flex-shrink:0}
+.channel-item .ch-icon-img{width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--line2);flex-shrink:0}
 .channel-item .ch-info{flex:1}.channel-item .ch-name{font:600 13px "Space Grotesk"}
 .channel-item .ch-status{font-size:10px;color:var(--muted);margin-top:1px}
 .channel-item.verified .ch-status{color:#62e6ae}
@@ -97,11 +98,11 @@
     <div class="tg-connect-box">
       <div style="font-size:40px;margin-bottom:14px">🎮</div>
       <h2>Connect Telegram to Continue</h2>
-      <p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:20px;max-width:420px;margin-inline:auto">Choose your preferred login method below:</p>
+      <p style="color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:24px;max-width:420px;margin-inline:auto">Log in using your Telegram account to verify membership and claim your Free Daily Likes:</p>
       
-      <div style="margin:0 auto;max-width:380px">
-        <!-- 1. Official Telegram Login Widget -->
-        <div id="tgWidgetArea" style="display:flex;justify-content:center;margin:12px 0 16px;min-height:42px">
+      <div style="margin:0 auto;max-width:340px">
+        <!-- Official Telegram Login Widget -->
+        <div id="tgWidgetArea" style="display:flex;justify-content:center;margin:16px 0 20px;min-height:48px">
           <script async src="https://telegram.org/js/telegram-widget.js?22"
             data-telegram-login="fflike_sbsbot"
             data-size="large"
@@ -113,33 +114,18 @@
 
         <div style="margin:16px 0 14px;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px">
           <div style="flex:1;height:1px;background:var(--line)"></div>
-          <span>OR VIA TELEGRAM BOT</span>
+          <span>OR VIA BOT</span>
           <div style="flex:1;height:1px;background:var(--line)"></div>
         </div>
 
         <button id="btnConnectTg" type="button" class="tg-connect-btn" onclick="startTgConnect()">
-          ✈️ 1-Click Connect with Bot
+          ✈️ Open @fflike_sbsbot & Connect
         </button>
         <div id="tgWaitingArea"></div>
-        <p style="font-size:11.5px;color:var(--muted);margin:8px 0 14px;line-height:1.5">Opens @fflike_sbsbot · Tap START to connect automatically.</p>
-
-        <div style="margin:16px 0 14px;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:11px">
-          <div style="flex:1;height:1px;background:var(--line)"></div>
-          <span>OR ENTER TELEGRAM ID</span>
-          <div style="flex:1;height:1px;background:var(--line)"></div>
-        </div>
-
-        <form id="quickConnectForm" onsubmit="handleIdConnect(event)">
-          <div style="display:flex;gap:8px">
-            <input id="tgIdInput" type="text" inputmode="numeric" placeholder="Numeric ID e.g. 7932057377" required style="flex:1;min-height:48px;padding:0 14px;border-radius:14px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:13.5px;outline:none">
-            <button type="submit" class="primary" id="idConnectBtn" style="min-height:48px;padding:0 18px;border-radius:14px;font-size:13px;white-space:nowrap">Connect ➔</button>
-          </div>
-        </form>
-        <small style="color:var(--muted);font-size:11px;display:block;margin-top:6px;text-align:left">Tip: Send <code>/start</code> to <a href="https://t.me/fflike_sbsbot" target="_blank" rel="noopener" style="color:#229ED9">@fflike_sbsbot</a> to find your numeric ID</small>
       </div>
 
       <div id="connectError" style="display:none;margin-top:14px" class="err-box"></div>
-      <p style="margin-top:16px;font-size:11px;color:var(--muted)">✓ Real Telegram verification &nbsp;·&nbsp; ✓ No password required &nbsp;·&nbsp; ✓ 7-day session</p>
+      <p style="margin-top:20px;font-size:11px;color:var(--muted)">✓ Official Telegram OAuth &nbsp;·&nbsp; ✓ Safe &amp; Secure &nbsp;·&nbsp; ✓ 7-day session</p>
     </div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:20px">
       <div class="service-card small" style="flex-direction:column;align-items:flex-start;gap:8px">
@@ -166,22 +152,22 @@
       <p style="color:var(--muted);font-size:13px;line-height:1.65;margin-bottom:16px">Join all 4 channels below, then click Verify to claim your free credit.</p>
       <div class="channel-list" id="channelList">
         <div class="channel-item" data-ch="riyazapi" data-url="https://t.me/riyazapi">
-          <div class="ch-icon">✈️</div>
+          <img class="ch-icon-img" src="/assets/channels/riyazapi.jpg" alt="@riyazapi" width="40" height="40">
           <div class="ch-info"><div class="ch-name">@riyazapi</div><div class="ch-status">Not joined</div></div>
           <a class="ch-join" href="https://t.me/riyazapi" target="_blank" rel="noopener">JOIN</a>
         </div>
         <div class="channel-item" data-ch="riyazlike" data-url="https://t.me/riyazlike">
-          <div class="ch-icon">👍</div>
+          <img class="ch-icon-img" src="/assets/channels/riyazlike.jpg" alt="@riyazlike" width="40" height="40">
           <div class="ch-info"><div class="ch-name">@riyazlike</div><div class="ch-status">Not joined</div></div>
           <a class="ch-join" href="https://t.me/riyazlike" target="_blank" rel="noopener">JOIN</a>
         </div>
         <div class="channel-item" data-ch="autolikegrp" data-url="https://t.me/autolikegrp">
-          <div class="ch-icon">🔥</div>
+          <img class="ch-icon-img" src="/assets/channels/autolikegrp.jpg" alt="@autolikegrp" width="40" height="40">
           <div class="ch-info"><div class="ch-name">@autolikegrp</div><div class="ch-status">Not joined</div></div>
           <a class="ch-join" href="https://t.me/autolikegrp" target="_blank" rel="noopener">JOIN</a>
         </div>
         <div class="channel-item" data-ch="orewaaizennn" data-url="https://t.me/orewaaizennn">
-          <div class="ch-icon">⚡</div>
+          <img class="ch-icon-img" src="/assets/channels/orewaaizennn.jpg" alt="@orewaaizennn" width="40" height="40">
           <div class="ch-info"><div class="ch-name">@orewaaizennn</div><div class="ch-status">Not joined</div></div>
           <a class="ch-join" href="https://t.me/orewaaizennn" target="_blank" rel="noopener">JOIN</a>
         </div>
@@ -370,7 +356,7 @@ function startTgConnect() {
     }, 1500);
   }).catch(err => {
     btn.disabled = false;
-    btn.innerHTML = '✈️ 1-Click Connect with Bot';
+    btn.innerHTML = '✈️ Open @fflike_sbsbot & Connect';
     if (errBox) { errBox.textContent = err.message || 'Connection failed'; errBox.style.display = 'block'; }
   });
 }

@@ -44,7 +44,7 @@ function verifyLoginToken(token) {
  * Returns the verified data object or throws.
  */
 function verifyTelegramLogin(data) {
-  const BOT_TOKEN = process.env.BOT_TOKEN;
+  const BOT_TOKEN = process.env.BOT_TOKEN || '8430101695:AAGx_Et9LWDBtKIFiwDBxjxnRrjaiZVitdM';
   if (!BOT_TOKEN) throw new Error('Bot token not configured');
 
   const { hash, ...rest } = data;

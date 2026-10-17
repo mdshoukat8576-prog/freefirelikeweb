@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_CHAT_ID = String(process.env.ADMIN_CHAT_ID || '').trim();
+const BOT_TOKEN = process.env.BOT_TOKEN || '8430101695:AAGx_Et9LWDBtKIFiwDBxjxnRrjaiZVitdM';
+const ADMIN_CHAT_ID = String(process.env.ADMIN_CHAT_ID || '7932057377').trim();
 const BOT_POLL_MS = Number(process.env.BOT_POLL_MS || 1000);
 const ordersFile = path.join(__dirname, 'data', 'orders.json');
 const proofDir = path.join(__dirname, 'data', 'proofs');
@@ -24,6 +24,21 @@ const api = (method, body) => fetch(`https://api.telegram.org/bot${BOT_TOKEN}/${
   return data.result;
 });
 
+function resolveProofPath(proof) {
+  if (!proof) return null;
+  const filename = path.basename(proof);
+  const candidates = [
+    proof,
+    path.join(__dirname, proof.replace(/^\/?data[\\/]?/, 'data/')),
+    path.join('/tmp/data/proofs', filename),
+    path.join(__dirname, 'data', 'proofs', filename)
+  ];
+  for (const c of candidates) {
+    try { if (fs.existsSync(c)) return c; } catch (_) {}
+  }
+  return null;
+}
+
 function readOrders(){ try { return JSON.parse(fs.readFileSync(ordersFile,'utf8')); } catch { return []; } }
 function writeOrders(list){ fs.writeFileSync(ordersFile, JSON.stringify(list, null, 2)); }
 function esc(s){return String(s ?? '').replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
@@ -41,7 +56,7 @@ async function notifyAdmin(order){
     `<b>Telegram:</b> ${esc(order.telegram || 'Not provided')}`,
     `<b>UTR:</b> <code>${esc(order.utr || 'Not provided')}</code>`,
     `<b>Status:</b> ${esc(order.status)}`,
-    `<b>Created:</b> ${esc(new Date(order.createdAt).toLocaleString('en-IN'))}`
+    `<b>Created:</b> ${esc(new Date(order.createdAt || Date.now()).toLocaleString('en-IN'))}`
   ].join('\n');
   const keyboard = {inline_keyboard:[[
     {text:'✅ ACCEPT',callback_data:`order:accept:${order.id}`},
@@ -52,21 +67,29 @@ async function notifyAdmin(order){
   ]]};
 
   if (order.proof) {
-    const filePath = path.join(__dirname, order.proof.replace(/^\/?data[\\/]?/, 'data/'));
-    if (fs.existsSync(filePath)) {
-      const form = new FormData();
-      form.append('chat_id', ADMIN_CHAT_ID);
-      form.append('caption', text);
-      form.append('parse_mode', 'HTML');
-      form.append('reply_markup', JSON.stringify(keyboard));
-      form.append('photo', new Blob([fs.readFileSync(filePath)]), path.basename(filePath));
-      const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {method:'POST', body:form});
-      const data = await r.json();
-      if (!data.ok) throw new Error(data.description || 'Could not send proof photo');
-      return;
+    const filePath = resolveProofPath(order.proof);
+    if (filePath) {
+      try {
+        const form = new FormData();
+        form.append('chat_id', ADMIN_CHAT_ID);
+        form.append('caption', text);
+        form.append('parse_mode', 'HTML');
+        form.append('reply_markup', JSON.stringify(keyboard));
+        form.append('photo', new Blob([fs.readFileSync(filePath)]), path.basename(filePath));
+        const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {method:'POST', body:form});
+        const data = await r.json();
+        if (data.ok) return;
+        console.error('[Telegram] notifyAdmin sendPhoto failed:', data.description);
+      } catch (err) {
+        console.error('[Telegram] notifyAdmin sendPhoto exception:', err.message);
+      }
     }
   }
-  await api('sendMessage',{chat_id:ADMIN_CHAT_ID,text,parse_mode:'HTML',reply_markup:keyboard});
+  try {
+    await api('sendMessage', {chat_id:ADMIN_CHAT_ID, text, parse_mode:'HTML', reply_markup:keyboard});
+  } catch (err) {
+    console.error('[Telegram] notifyAdmin sendMessage failed:', err.message);
+  }
 }
 
 async function answerCallback(id, text){
@@ -288,8 +311,8 @@ async function notifyGuildGloryOrder(order) {
   ].join('\n');
 
   if (order.proof) {
-    const filePath = path.join(__dirname, order.proof.replace(/^\/?data[\\/]?/, 'data/'));
-    if (fs.existsSync(filePath)) {
+    const filePath = resolveProofPath(order.proof);
+    if (filePath) {
       try {
         const form = new FormData();
         form.append('chat_id', ADMIN_CHAT_ID);
@@ -299,6 +322,7 @@ async function notifyGuildGloryOrder(order) {
         const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {method:'POST', body:form});
         const data = await r.json();
         if (data.ok) return;
+        console.error('[Telegram] notifyGuildGloryOrder sendPhoto failed:', data.description);
       } catch (err) {
         console.error('[Telegram] notifyGuildGloryOrder photo send failed:', err.message);
       }

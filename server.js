@@ -539,7 +539,7 @@ app.post('/api/guild-glory/orders', optionalAuth, async (req, res) => {
       utr: String(utr).trim().slice(0,64),
       telegram: String(telegram||'').trim().slice(0,64)
     });
-    try { await notifyGuildGloryOrder(order); } catch (_) {}
+    try { await notifyGuildGloryOrder(order); } catch (e) { console.error('[GuildGlory notify]', e.message); }
     res.json({ ok: true, order });
   } catch (e) {
     console.error('[GuildGlory]', e.message);
@@ -578,7 +578,7 @@ app.post('/api/guild-glory/orders/:ref/proof', upload.single('proof'), async (re
     db.updateGuildGloryOrder(req.params.ref, { payment_status: 'proof_submitted', fulfillment_status: 'under_review', utr, proof: relativePath });
     const updated = db.getGuildGloryOrderByRef(req.params.ref);
     if (updated) {
-      try { await notifyGuildGloryOrder(updated); } catch (_) {}
+      try { await notifyGuildGloryOrder(updated); } catch (e) { console.error('[GuildGlory proof notify]', e.message); }
     }
     res.json({ ok: true, order: updated });
   } catch (e) { res.status(500).json({ error: 'Failed' }); }
@@ -634,6 +634,7 @@ app.post(['/api/orders','/orders'], (req, res) => {
   const orders = readOrders();
   orders.unshift(order);
   writeOrders(orders);
+  try { notifyAdmin(order).catch(e => console.error('[Order notify error]', e.message)); } catch (_) {}
   res.json({ ok: true, order, payment: publicConfig().payment, adminTelegram: publicConfig().contact.adminTelegram });
 });
 
